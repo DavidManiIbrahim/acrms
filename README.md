@@ -64,38 +64,40 @@ A comprehensive Customer Relationship Management (CRM) and Service Management pl
 ## 🛠️ Technology Stack
 
 - **Frontend**: React 18, TypeScript, Vite
+- **Backend**: Node.js, Express.js, TypeScript
+- **Database**: MongoDB with Mongoose ODM
 - **UI Framework**: Tailwind CSS, shadcn/ui components
-- **Backend**: Supabase (PostgreSQL, Auth, Storage, Edge Functions)
 - **State Management**: React Context, Custom Hooks
-- **Authentication**: Supabase Auth with Row Level Security (RLS)
+- **Authentication**: JWT with bcrypt password hashing
 - **Routing**: React Router v6
 - **Forms**: React Hook Form with Zod validation
 - **Icons**: Lucide React
 - **Charts**: Recharts
 - **Notifications**: Sonner toast library
+- **API**: RESTful API with Express.js
 
 ## 🏗️ System Architecture
 
-The system follows a modern client-server architecture:
+The system follows a modern full-stack architecture:
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   React Client  │    │   Supabase API   │    │   PostgreSQL    │
-│                 │    │                  │    │    Database     │
+│   React Client  │    │   Node.js API    │    │   MongoDB       │
+│                 │    │   (Express.js)   │    │   Database      │
 ├─────────────────┤    ├──────────────────┤    ├─────────────────┤
-│ • Components    │◄──►│ • Authentication │◄──►│ • Tables        │
-│ • Hooks         │    │ • REST API       │    │ • RLS Policies  │
-│ • Context       │    │ • Real-time      │    │ • Functions     │
-│ • Utils         │    │ • Storage        │    │ • Triggers      │
+│ • Components    │◄──►│ • Authentication │◄──►│ • Collections   │
+│ • Hooks         │    │ • REST API       │    │ • Documents     │
+│ • Context       │    │ • JWT Tokens     │    │ • Indexes       │
+│ • Utils         │    │ • Middleware     │    │ • Aggregation   │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
 ```
 
 ## 📊 Database Schema
 
-### **Core Tables**
-- `profiles` - User profile information with contact details
-- `user_roles` - Role assignments and specialties
-- `service_requests` - Service request management with full lifecycle
+### **MongoDB Collections**
+- `users` - User accounts with authentication and profile data
+- `assets` - IT assets management with specifications
+- `servicerequests` - Service request management with full lifecycle
 - `assets` - Asset tracking and management with image support
 - `activity_logs` - System audit trail
 - `notifications` - User notifications
@@ -110,8 +112,8 @@ The system follows a modern client-server architecture:
 ## 🚀 Getting Started
 
 ### **Prerequisites**
-- Node.js 18+ and npm/yarn
-- Supabase account and project
+- Node.js 18+ and npm
+- MongoDB database (local or cloud instance)
 
 ### **Installation**
 
@@ -121,21 +123,39 @@ The system follows a modern client-server architecture:
    cd <YOUR_PROJECT_NAME>
    ```
 
-2. **Install dependencies**
+2. **Backend Setup**
    ```bash
+   cd backend
    npm install
-   # or
-   yarn install
+   cp .env.example .env  # Configure your environment variables
+   npm run dev
    ```
 
-3. **Environment Setup**
-   - The project is pre-configured with Supabase credentials
-   - Database URL: `https://ybsojrimjnczipcghsie.supabase.co`
-   - All environment variables are embedded in the client
+3. **Frontend Setup** (in a new terminal)
+   ```bash
+   # Back to root directory
+   cd ..
+   npm install
+   npm run dev
+   ```
 
-4. **Database Setup**
-   - The database schema is automatically managed through Supabase migrations
-   - All tables, RLS policies, and functions are pre-configured
+4. **Environment Configuration**
+
+   **Backend (.env):**
+   ```env
+   PORT=3001
+   MONGODB_URI=mongodb://localhost:27017/acrms
+   JWT_SECRET=your-secret-key
+   ```
+
+   **Frontend (.env):**
+   ```env
+   VITE_API_URL=http://localhost:3001/api
+   ```
+
+5. **Database Setup**
+   - MongoDB collections are created automatically on first run
+   - No manual migrations required
    - Row Level Security (RLS) is enabled for all tables
 
 5. **Run the development server**
