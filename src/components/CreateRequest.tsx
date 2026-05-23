@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Wrench } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 
 interface CreateRequestProps {
   onRequestCreated?: () => void;
@@ -43,35 +43,13 @@ export const CreateRequest = ({ onRequestCreated }: CreateRequestProps) => {
     setIsCreating(true);
 
     try {
-      const { error } = await supabase
-        .from('service_requests')
-        .insert({
-          user_id: user.id,
-          title: newRequest.title,
-          description: newRequest.description,
-          job_type: newRequest.job_type,
-          priority: newRequest.priority,
-          location: newRequest.location || null,
-          required_specialty: newRequest.required_specialty || null,
-          status: 'pending'
-        });
-
-      if (error) {
-        console.error('Error creating service request:', error);
-        toast({
-          title: "Error",
-          description: "Failed to create service request",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      // Log activity
-      await supabase.from('activity_logs').insert({
-        user_id: user.id,
-        action: 'create_request',
-        description: `Created service request: ${newRequest.title}`,
-        entity_type: 'service_request'
+      await apiClient.createServiceRequest({
+        title: newRequest.title,
+        description: newRequest.description,
+        job_type: newRequest.job_type,
+        priority: newRequest.priority,
+        location: newRequest.location || null,
+        required_specialty: newRequest.required_specialty || null,
       });
 
       toast({
@@ -88,15 +66,14 @@ export const CreateRequest = ({ onRequestCreated }: CreateRequestProps) => {
         required_specialty: ""
       });
 
-      // Notify parent component
       if (onRequestCreated) {
         onRequestCreated();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error creating service request:', error);
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: error.message || "Failed to create service request",
         variant: "destructive",
       });
     } finally {

@@ -14,7 +14,7 @@ import {
   Users
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 
 interface ServiceRequest {
   id: string;
@@ -58,20 +58,31 @@ export const MyRequestsList = () => {
     if (!user) return;
 
     try {
-const { data, error } = await supabase
-  .from('service_requests')
-  .select(`
-    *,profiles!fk_service_requests_assigned_technician_id(first_name,last_name,email)
-  `)
-  .eq('user_id', user.id)
-  .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching my requests:', error);
-        return;
-      }
-
-      setRequests((data as any) || []);
+      const response = await apiClient.getServiceRequests();
+      const raw = response.requests || [];
+      const mapped = raw.map((req: any) => ({
+        id: req._id || req.id,
+        title: req.title,
+        description: req.description || null,
+        status: req.status,
+        priority: req.priority,
+        job_type: req.job_type,
+        location: req.location || null,
+        estimated_duration: req.estimated_duration || null,
+        created_at: req.created_at,
+        updated_at: req.updated_at,
+        scheduled_date: req.scheduled_date || null,
+        assigned_technician_id: req.assigned_technician_id || null,
+        user_id: req.user_id,
+        completed_at: req.completed_at || null,
+        required_specialty: req.required_specialty || null,
+        profiles: req.assigned_technician ? {
+          first_name: req.assigned_technician.first_name || null,
+          last_name: req.assigned_technician.last_name || null,
+          email: req.assigned_technician.email || ''
+        } : null
+      }));
+      setRequests(mapped);
     } catch (error) {
       console.error('Error fetching my requests:', error);
     } finally {

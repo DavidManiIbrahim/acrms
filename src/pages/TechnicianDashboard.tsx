@@ -28,7 +28,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Layout } from "@/components/Layout";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 
 const TechnicianDashboard = () => {
   const { user, loading } = useAuth();
@@ -67,27 +67,21 @@ const TechnicianDashboard = () => {
 
   const fetchRequests = async () => {
     if (!user) return;
-
     try {
-      // Fetch requests based on assignment and pending
-      let query = supabase
-        .from('service_requests')
-        .select(`
-          *
-        `)
-        .order('created_at', { ascending: false });
-
-      // Show assigned to me or pending
-      query = query.or(`assigned_technician_id.eq.${user.id},status.eq.pending`);
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('Error fetching requests:', error);
-        return;
-      }
-
-      setRequests(data || []);
+      const response = await apiClient.getServiceRequests();
+      const raw = response.requests || [];
+      const mapped = raw.map((req: any) => ({
+        id: req._id || req.id,
+        title: req.title,
+        description: req.description || null,
+        status: req.status,
+        priority: req.priority,
+        job_type: req.job_type,
+        location: req.location || null,
+        assigned_technician_id: req.assigned_technician_id || null,
+        created_at: req.created_at
+      }));
+      setRequests(mapped);
     } catch (error) {
       console.error('Error fetching requests:', error);
     }
@@ -95,48 +89,30 @@ const TechnicianDashboard = () => {
 
   const fetchAnalytics = async () => {
     if (!user) return;
-
     try {
-      // Get completed requests count
-      const { count: completedCount } = await supabase
-        .from('service_requests')
-        .select('*', { count: 'exact', head: true })
-        .eq('assigned_technician_id', user.id)
-        .eq('status', 'completed');
+      const response = await apiClient.getServiceRequests();
+      const all = response.requests || [];
+      const myId = user.id || user._id;
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      // Get assigned requests count
-      const { count: assignedCount } = await supabase
-        .from('service_requests')
-        .select('*', { count: 'exact', head: true })
-        .eq('assigned_technician_id', user.id)
-        .eq('status', 'assigned');
-
-      // Get pending requests count
-      const { count: pendingCount } = await supabase
-        .from('service_requests')
-        .select('*', { count: 'exact', head: true })
-        .eq('assigned_technician_id', user.id)
-        .eq('status', 'pending');
-
-      // Get this month completed
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
-      
-      const { count: monthCompleted } = await supabase
-        .from('service_requests')
-        .select('*', { count: 'exact', head: true })
-        .eq('assigned_technician_id', user.id)
-        .eq('status', 'completed')
-        .gte('completed_at', startOfMonth.toISOString());
+      const totalCompleted = all.filter((r: any) => r.assigned_technician_id === myId && r.status === 'completed').length;
+      const totalAssigned = all.filter((r: any) => r.assigned_technician_id === myId && r.status === 'assigned').length;
+      const totalPending = all.filter((r: any) => r.status === 'pending').length;
+      const thisMonthCompleted = all.filter((r: any) =>
+        r.assigned_technician_id === myId &&
+        r.status === 'completed' &&
+        r.completed_at &&
+        new Date(r.completed_at) >= startOfMonth
+      ).length;
 
       setAnalytics({
-        totalCompleted: completedCount || 0,
-        totalAssigned: assignedCount || 0,
-        totalPending: pendingCount || 0,
-        thisMonthCompleted: monthCompleted || 0,
-        averageCompletionTime: 2.5, // Mock data for now
-        customerSatisfaction: 4.8 // Mock data for now
+        totalCompleted,
+        totalAssigned,
+        totalPending,
+        thisMonthCompleted,
+        averageCompletionTime: 2.5,
+        customerSatisfaction: 4.8
       });
     } catch (error) {
       console.error('Error fetching analytics:', error);
@@ -145,84 +121,40 @@ const TechnicianDashboard = () => {
 
   const handleAcceptRequest = async (requestId: string) => {
     try {
-      const { error } = await supabase
-        .from('service_requests')
-        .update({ 
-          status: 'assigned', 
-          assigned_technician_id: user?.id 
-        })
-        .eq('id', requestId);
-
-      if (error) throw error;
-
-      // Log activity
-      await supabase.from('activity_logs').insert({
-        user_id: user?.id,
-        action: 'accept_request',
-        description: `Accepted service request`,
-        entity_type: 'service_request',
-        entity_id: requestId
+      await apiClient.updateServiceRequest(requestId, {
+        status: 'assigned',
+        assigned_technician_id: user?.id
       });
-
-      toast({
-        title: "Request Accepted",
-        description: `You have accepted request ${requestId}`,
-      });
-
+      toast({ title: "Request Accepted", description: `You have accepted the request.` });
       fetchRequests();
       fetchAnalytics();
-    } catch (error) {
-      console.error('Error accepting request:', error);
-      toast({
-        title: "Error",
-        description: "Failed to accept request",
-        variant: "destructive"
-      });
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to accept request", variant: "destructive" });
     }
   };
 
   const handleStartWork = async (requestId: string) => {
     try {
-      const { error } = await supabase
-        .from('service_requests')
-        .update({ status: 'in_progress' })
-        .eq('id', requestId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Work Started",
-        description: `You have started working on request ${requestId}`,
-      });
-
+      await apiClient.updateServiceRequest(requestId, { status: 'in_progress' });
+      toast({ title: "Work Started", description: `You have started working on the request.` });
       fetchRequests();
       fetchAnalytics();
-    } catch (error) {
-      console.error('Error starting work:', error);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to start work", variant: "destructive" });
     }
   };
 
   const handleCompleteWork = async (requestId: string) => {
     try {
-      const { error } = await supabase
-        .from('service_requests')
-        .update({ 
-          status: 'completed',
-          completed_at: new Date().toISOString()
-        })
-        .eq('id', requestId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Work Completed",
-        description: `Request ${requestId} has been marked as completed`,
+      await apiClient.updateServiceRequest(requestId, {
+        status: 'completed',
+        completed_at: new Date().toISOString()
       });
-
+      toast({ title: "Work Completed", description: `Request has been marked as completed.` });
       fetchRequests();
       fetchAnalytics();
-    } catch (error) {
-      console.error('Error completing work:', error);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to complete work", variant: "destructive" });
     }
   };
 

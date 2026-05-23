@@ -21,7 +21,7 @@ import { formatCurrency } from "@/lib/currency";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Layout } from "@/components/Layout";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 
 const Dashboard = () => {
   const { user, loading } = useAuth();
@@ -63,78 +63,53 @@ const Dashboard = () => {
     }
   }, [role, roleLoading, user, navigate]);
 
-  // Fetch real dashboard data
+  // Fetch real dashboard data + service requests in one call
   useEffect(() => {
     const fetchDashboardData = async () => {
       if (!user) return;
-      
       try {
-        // Fetch active requests
-        const { data: activeRequestsData } = await supabase
-          .from('service_requests')
-          .select('id')
-          .eq('user_id', user.id)
-          .in('status', ['pending', 'assigned', 'in_progress']);
+        const response = await apiClient.getServiceRequests();
+        const all = response.requests || [];
 
-        // Fetch completed jobs
-        const { data: completedJobsData } = await supabase
-          .from('service_requests')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('status', 'completed');
-
-        // Fetch pending reviews (completed but no feedback)
-        const { data: pendingReviewsData } = await supabase
-          .from('service_requests')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('status', 'completed')
-          .is('completed_at', null);
+        const active = all.filter((r: any) =>
+          ['pending', 'assigned', 'in_progress'].includes(r.status)
+        ).length;
+        const completed = all.filter((r: any) => r.status === 'completed').length;
+        const pendingReviews = all.filter((r: any) =>
+          r.status === 'completed' && !r.completed_at
+        ).length;
 
         setStats({
-          activeRequests: activeRequestsData?.length || 0,
-          completedJobs: completedJobsData?.length || 0,
-          pendingReviews: pendingReviewsData?.length || 0,
-          totalSpent: 0 // This could be calculated based on service costs if available
+          activeRequests: active,
+          completedJobs: completed,
+          pendingReviews,
+          totalSpent: 0
         });
+
+        // Show 5 most recent
+        const mapped = all.slice(0, 5).map((req: any) => ({
+          id: req._id || req.id,
+          title: req.title,
+          description: req.description || null,
+          status: req.status,
+          priority: req.priority,
+          job_type: req.job_type,
+          location: req.location || null,
+          created_at: req.created_at,
+          profiles: req.assigned_technician ? {
+            first_name: req.assigned_technician.first_name,
+            last_name: req.assigned_technician.last_name
+          } : null
+        }));
+        setServiceRequests(mapped);
       } catch (error) {
         console.error('Error fetching dashboard data:', error);
-      }
-    };
-
-    fetchDashboardData();
-  }, [user]);
-
-  // Fetch service requests for display
-  useEffect(() => {
-    const fetchServiceRequests = async () => {
-      if (!user) return;
-      
-      try {
-        const { data, error } = await supabase
-          .from('service_requests')
-          .select(`
-            *,
-            profiles!fk_service_requests_assigned_technician_id(first_name, last_name, email)
-          `)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(5); // Show only the 5 most recent requests
-
-        if (error) {
-          console.error('Error fetching service requests:', error);
-          return;
-        }
-
-        setServiceRequests(data || []);
-      } catch (error) {
-        console.error('Error fetching service requests:', error);
       } finally {
         setLoadingRequests(false);
       }
     };
 
-    fetchServiceRequests();
+    fetchDashboardData();
   }, [user]);
 
   // Helper functions for status and priority colors

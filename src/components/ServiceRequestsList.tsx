@@ -16,7 +16,7 @@ import {
   AlertCircle,
   XCircle
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useToast } from "@/hooks/use-toast";
@@ -53,14 +53,6 @@ export const ServiceRequestsList = () => {
   useEffect(() => {
     if (user) {
       fetchServiceRequests();
-      // realtime: refresh on changes
-      const channel = supabase
-        .channel('service_requests_realtime')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'service_requests' }, () => {
-          fetchServiceRequests();
-        })
-        .subscribe();
-      return () => { supabase.removeChannel(channel); };
     }
   }, [user, role]);
 
@@ -68,29 +60,27 @@ export const ServiceRequestsList = () => {
     if (!user) return;
 
     try {
-      let query = supabase
-        .from('service_requests')
-        .select(`
-          *
-        `)
-        .order('created_at', { ascending: false });
-
-      // Apply role-based filtering
-      if (role === 'user') {
-        query = query.eq('user_id', user.id);
-      } else if (role === 'technician') {
-        // Show requests assigned to the technician OR any pending requests
-        query = query.or(`assigned_technician_id.eq.${user.id},status.eq.pending`);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('Error fetching service requests:', error);
-        return;
-      }
-
-      setRequests((data as unknown as ServiceRequest[]) || []);
+      const response = await apiClient.getServiceRequests();
+      const raw = response.requests || [];
+      const mapped = raw.map((req: any) => ({
+        id: req._id || req.id,
+        title: req.title,
+        description: req.description || null,
+        job_type: req.job_type,
+        priority: req.priority,
+        status: req.status,
+        location: req.location || null,
+        estimated_duration: req.estimated_duration || null,
+        created_at: req.created_at,
+        user_id: req.user_id?._id || req.user_id || '',
+        assigned_technician_id: req.assigned_technician_id?._id || req.assigned_technician_id || null,
+        profiles: req.user ? {
+          first_name: req.user.first_name || null,
+          last_name: req.user.last_name || null,
+          email: req.user.email || ''
+        } : null
+      }));
+      setRequests(mapped);
     } catch (error) {
       console.error('Error fetching service requests:', error);
     } finally {
@@ -110,28 +100,7 @@ export const ServiceRequestsList = () => {
         updates.completed_at = new Date().toISOString();
       }
 
-      const { error } = await supabase
-        .from('service_requests')
-        .update(updates)
-        .eq('id', requestId);
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to update request status",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Log activity
-      await supabase.from('activity_logs').insert({
-        user_id: user?.id,
-        action: `${newStatus}_request`,
-        description: `Request ${newStatus}`,
-        entity_type: 'service_request',
-        entity_id: requestId
-      });
+      await apiClient.updateServiceRequest(requestId, updates);
 
       toast({
         title: "Success",
@@ -139,8 +108,13 @@ export const ServiceRequestsList = () => {
       });
 
       fetchServiceRequests();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating request:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update request status",
+        variant: "destructive"
+      });
     }
   };
 

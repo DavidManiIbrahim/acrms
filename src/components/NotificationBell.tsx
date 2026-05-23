@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Bell } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -32,28 +33,26 @@ export const NotificationBell = () => {
   useEffect(() => {
     if (user) {
       fetchNotifications();
-      setupRealtimeSubscription();
     }
   }, [user]);
 
   const fetchNotifications = async () => {
     if (!user) return;
-
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (error) {
-        console.error('Error fetching notifications:', error);
-        return;
-      }
-
-      setNotifications(data || []);
+      const response = await apiClient.getNotifications();
+      const raw = response.notifications || response || [];
+      const data = Array.isArray(raw) ? raw : [];
+      setNotifications(
+        data.slice(0, 10).map((n: any) => ({
+          id: n._id || n.id,
+          title: n.title,
+          message: n.message,
+          type: n.type,
+          read: !!n.read,
+          created_at: n.created_at
+        }))
+      );
     } catch (error) {
       console.error('Error fetching notifications:', error);
     } finally {
@@ -61,52 +60,11 @@ export const NotificationBell = () => {
     }
   };
 
-  const setupRealtimeSubscription = () => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel('notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          setNotifications(prev => [payload.new as Notification, ...prev]);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  };
-
   const markAsRead = async (notificationId: string) => {
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('id', notificationId);
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to mark notification as read",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      setNotifications(prev => 
-        prev.map(notif => 
-          notif.id === notificationId 
-            ? { ...notif, read: true }
-            : notif
-        )
+      await apiClient.markNotificationAsRead(notificationId);
+      setNotifications(prev =>
+        prev.map(n => n.id === notificationId ? { ...n, read: true } : n)
       );
     } catch (error) {
       console.error('Error marking notification as read:', error);
@@ -114,32 +72,11 @@ export const NotificationBell = () => {
   };
 
   const markAllAsRead = async () => {
-    if (!user) return;
-
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('user_id', user.id)
-        .eq('read', false);
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to mark all notifications as read",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      setNotifications(prev => 
-        prev.map(notif => ({ ...notif, read: true }))
-      );
-
-      toast({
-        title: "Success",
-        description: "All notifications marked as read"
-      });
+      const unread = notifications.filter(n => !n.read);
+      await Promise.all(unread.map(n => apiClient.markNotificationAsRead(n.id)));
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      toast({ title: "Success", description: "All notifications marked as read" });
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
     }

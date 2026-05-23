@@ -17,7 +17,7 @@ import {
   CheckCircle,
   XCircle
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 
@@ -45,70 +45,34 @@ export const ActivityLog = () => {
   const [actionFilter, setActionFilter] = useState("all");
 
   useEffect(() => {
-    if (user) {
-      fetchActivityLogs();
-      setupRealtimeSubscription();
-    }
+    if (user) fetchActivityLogs();
   }, [user, role]);
 
   const fetchActivityLogs = async () => {
     if (!user) return;
-
     try {
-      let query = supabase
-        .from('activity_logs')
-        .select(`
-          *,
-          profiles (
-            first_name,
-            last_name,
-            email
-          )
-        `)
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      // If not admin, only show user's own activities
-      if (role !== 'admin') {
-        query = query.eq('user_id', user.id);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('Error fetching activity logs:', error);
-        return;
-      }
-
-      setActivities(data || []);
+      const response = await apiClient.getActivityLogs();
+      const raw = response.logs || [];
+      const mapped = raw.map((log: any) => ({
+        id: log._id || log.id,
+        action: log.action,
+        description: log.description,
+        entity_type: log.entity_type || null,
+        entity_id: log.entity_id || null,
+        metadata: log.metadata || null,
+        created_at: log.created_at,
+        profiles: log.user ? {
+          first_name: log.user.first_name || null,
+          last_name: log.user.last_name || null,
+          email: log.user.email || ''
+        } : { first_name: 'System', last_name: '', email: '' }
+      }));
+      setActivities(mapped);
     } catch (error) {
       console.error('Error fetching activity logs:', error);
     } finally {
       setLoading(false);
     }
-  };
-
-  const setupRealtimeSubscription = () => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel('activity_logs')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'activity_logs'
-        },
-        () => {
-          fetchActivityLogs();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   };
 
   const filteredActivities = activities.filter(activity => {

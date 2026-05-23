@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/integrations/supabase/client';
-import { Database } from '@/integrations/supabase/types';
 
-type UserRole = Database['public']['Enums']['app_role'];
+type UserRole = 'admin' | 'manager' | 'ceo' | 'technician' | 'sales' | 'user';
 
 export const useUserRole = () => {
   const { user, loading: authLoading } = useAuth();
@@ -19,39 +17,11 @@ export const useUserRole = () => {
       return;
     }
 
-    // Check if the user object has roles from our Express backend
-    const userRole = user.roles?.[0]?.role as UserRole;
-    if (userRole) {
-      setRole(userRole);
-      setLoading(false);
-      return;
-    }
-
-    const fetchUserRole = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', user.id)
-          .single();
-
-        if (error) {
-          console.error('Error fetching user role:', error);
-          // Default to 'user' role if error occurs
-          setRole('user');
-        } else {
-          setRole(data.role as UserRole);
-        }
-      } catch (error) {
-        console.error('Error fetching user role:', error);
-        setRole('user');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserRole();
+    // Roles come from the Express backend via useAuth
+    const userRole = (user.roles?.[0]?.role ?? 'user') as UserRole;
+    setRole(userRole);
+    setLoading(false);
   }, [user, authLoading]);
 
   return { role, loading: loading || authLoading };
-};
+};
