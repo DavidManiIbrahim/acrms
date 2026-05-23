@@ -100,7 +100,7 @@ router.post('/login', [
     const { email, password } = req.body;
 
     // Find user
-    const user = await User.findOne({ email }).populate('profile roles');
+    const user = await User.findOne({ email });
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -113,6 +113,9 @@ router.post('/login', [
 
     // Generate token
     const token = generateToken(user._id.toString());
+
+    // Log activity
+    await logActivity(user._id.toString(), 'user_login', `User logged in: ${email}`, 'user', user._id.toString());
 
     return res.json({
       message: 'Login successful',
@@ -133,7 +136,7 @@ router.post('/login', [
 // Get current user profile
 router.get('/profile', authenticateToken, async (req: any, res: any) => {
   try {
-    const user = await User.findById(req.user._id).populate('profile roles');
+    const user = await User.findById(req.user._id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -193,6 +196,9 @@ router.put('/profile', authenticateToken, async (req: any, res: any) => {
 
     user.profile.updated_at = new Date();
     await user.save();
+
+    // Log activity
+    await logActivity(user._id.toString(), 'update_profile', `Updated profile information`, 'user', user._id.toString());
 
     return res.json({
       message: 'Profile updated successfully',

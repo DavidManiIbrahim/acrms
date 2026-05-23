@@ -22,7 +22,7 @@ import {
 import { formatCurrency } from "@/lib/currency";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 
 interface InventoryItem {
   id: string;
@@ -66,14 +66,7 @@ const Inventory = () => {
   const fetchInventory = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('inventory')
-        .select('*')
-        .order('last_updated', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching inventory:', error);
-      }
+      const data = await apiClient.getInventory();
 
       if (data) {
         // Ensure status exists; compute if missing
@@ -84,7 +77,7 @@ const Inventory = () => {
           if (quantity <= 0) status = 'out_of_stock';
           else if (quantity < minStock) status = 'low_stock';
           return {
-            id: row.id,
+            id: row._id || row.id,
             name: row.name,
             description: row.description ?? '',
             category: row.category ?? 'Uncategorized',
@@ -99,6 +92,8 @@ const Inventory = () => {
         });
         setItems(normalized);
       }
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
     } finally {
       setLoading(false);
     }
@@ -129,49 +124,44 @@ const Inventory = () => {
       status,
     };
 
-    const { data, error } = await supabase
-      .from('inventory')
-      .insert(payload)
-      .select('*')
-      .single();
+    try {
+      const data = await apiClient.createInventoryItem(payload);
 
-    if (error) {
+      toast({ title: 'Item Added', description: 'New inventory item has been added successfully.' });
+
+      // Optimistically add or refetch
+      if (data) {
+        setItems(prev => [{
+          id: data._id || data.id,
+          name: data.name,
+          description: data.description ?? '',
+          category: data.category ?? 'Uncategorized',
+          quantity: Number(data.quantity ?? 0),
+          min_stock_level: Number(data.min_stock_level ?? 0),
+          unit_price: Number(data.unit_price ?? 0),
+          supplier: data.supplier ?? '',
+          location: data.location ?? '',
+          status: (data.status as InventoryItem['status']) ?? status,
+          last_updated: data.last_updated ?? data.updated_at ?? data.created_at ?? new Date().toISOString(),
+        }, ...prev]);
+      } else {
+        fetchInventory();
+      }
+
+      // Reset form and close
+      setNewItemName("");
+      setNewItemDescription("");
+      setNewItemCategory(undefined);
+      setNewItemQuantity(undefined);
+      setNewItemMinStock(undefined);
+      setNewItemUnitPrice(undefined);
+      setNewItemSupplier("");
+      setNewItemLocation("");
+      setIsAddDialogOpen(false);
+    } catch (error: any) {
       console.error('Error adding inventory item:', error);
-      toast({ title: 'Error', description: 'Failed to add item.', variant: 'destructive' });
-      return;
+      toast({ title: 'Error', description: error.message || 'Failed to add item.', variant: 'destructive' });
     }
-
-    toast({ title: 'Item Added', description: 'New inventory item has been added successfully.' });
-
-    // Optimistically add or refetch
-    if (data) {
-      setItems(prev => [{
-        id: data.id,
-        name: data.name,
-        description: data.description ?? '',
-        category: data.category ?? 'Uncategorized',
-        quantity: Number(data.quantity ?? 0),
-        min_stock_level: Number(data.min_stock_level ?? 0),
-        unit_price: Number(data.unit_price ?? 0),
-        supplier: data.supplier ?? '',
-        location: data.location ?? '',
-        status: (data.status as InventoryItem['status']) ?? status,
-        last_updated: data.last_updated ?? data.updated_at ?? data.created_at ?? new Date().toISOString(),
-      }, ...prev]);
-    } else {
-      fetchInventory();
-    }
-
-    // Reset form and close
-    setNewItemName("");
-    setNewItemDescription("");
-    setNewItemCategory(undefined);
-    setNewItemQuantity(undefined);
-    setNewItemMinStock(undefined);
-    setNewItemUnitPrice(undefined);
-    setNewItemSupplier("");
-    setNewItemLocation("");
-    setIsAddDialogOpen(false);
   };
 
   const filteredItems = items.filter(item => {

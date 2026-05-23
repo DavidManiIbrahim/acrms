@@ -93,6 +93,20 @@ export interface IServiceRequest extends Document {
   user_id: string;
 }
 
+export interface IInventory extends Document {
+  name: string;
+  description?: string;
+  category: string;
+  quantity: number;
+  min_stock_level: number;
+  unit_price: number;
+  supplier?: string;
+  location?: string;
+  status: string;
+  last_updated: Date;
+  user_id: string;
+}
+
 export interface IUserRole extends Document {
   created_at: Date;
   role: AppRoleType;
@@ -206,6 +220,20 @@ const UserSchema = new Schema<IUser>({
   updated_at: { type: Date, default: Date.now }
 });
 
+const InventorySchema = new Schema<IInventory>({
+  name: { type: String, required: true },
+  description: String,
+  category: { type: String, required: true },
+  quantity: { type: Number, required: true, default: 0 },
+  min_stock_level: { type: Number, required: true, default: 0 },
+  unit_price: { type: Number, required: true, default: 0 },
+  supplier: String,
+  location: String,
+  status: { type: String, required: true, default: 'in_stock' },
+  last_updated: { type: Date, default: Date.now },
+  user_id: { type: String, required: true }
+});
+
 // Models
 export const ActivityLog: Model<IActivityLog> = mongoose.models.ActivityLog || mongoose.model<IActivityLog>('ActivityLog', ActivityLogSchema);
 export const Asset: Model<IAsset> = mongoose.models.Asset || mongoose.model<IAsset>('Asset', AssetSchema);
@@ -214,3 +242,4 @@ export const Profile: Model<IProfile> = mongoose.models.Profile || mongoose.mode
 export const ServiceRequest: Model<IServiceRequest> = mongoose.models.ServiceRequest || mongoose.model<IServiceRequest>('ServiceRequest', ServiceRequestSchema);
 export const UserRole: Model<IUserRole> = mongoose.models.UserRole || mongoose.model<IUserRole>('UserRole', UserRoleSchema);
 export const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);
+export const Inventory: Model<IInventory> = mongoose.models.Inventory || mongoose.model<IInventory>('Inventory', InventorySchema);

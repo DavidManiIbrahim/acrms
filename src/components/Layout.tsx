@@ -6,6 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/useAuth";
 import { ProfileDropdown } from "./ProfileDropdown";
 import { NotificationBell } from "./NotificationBell";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface LayoutProps {
   children: ReactNode;
@@ -28,6 +29,7 @@ export function Layout({ children, showSidebar = true }: LayoutProps) {
             <SidebarTrigger className="hover:bg-muted/60 rounded-lg p-2 transition-colors" />
             <Separator orientation="vertical" className="mr-2 h-4" />
             <div className="flex-1" />
+            <ThemeToggle />
             <NotificationBell />
             <ProfileDropdown />
           </header>

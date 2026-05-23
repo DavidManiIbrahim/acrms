@@ -198,29 +198,38 @@ export const StaffManagement = () => {
 
   const fetchServiceRequests = async () => {
     try {
-      const { data, error } = await supabase
-        .from('service_requests')
-        .select(`
-          *,
-          user:profiles!fk_service_requests_user_id(first_name, last_name, email),
-          assigned_technician:profiles!fk_service_requests_assigned_technician_id(first_name, last_name)
-        `)
-        .order('created_at', { ascending: false })
-        .limit(50);
+      const response = await apiClient.getServiceRequests();
+      const rawData = response.requests || [];
+      const data = rawData.map((req: any) => ({
+        id: req._id || req.id,
+        title: req.title,
+        status: req.status,
+        priority: req.priority,
+        created_at: req.created_at,
+        user: req.user_id ? {
+          first_name: req.user_id.profile?.first_name || '',
+          last_name: req.user_id.profile?.last_name || '',
+          email: req.user_id.email
+        } : { first_name: 'Unknown', last_name: 'User', email: '' },
+        assigned_technician: req.assigned_technician_id ? {
+          first_name: req.assigned_technician_id.profile?.first_name || '',
+          last_name: req.assigned_technician_id.profile?.last_name || ''
+        } : null,
+        job_type: req.job_type,
+        location: req.location || null
+      }));
 
-      if (!error && data) {
-        setServiceRequests(data);
-        const total = data.length;
-        const pending = data.filter(req => req.status === 'pending').length;
-        const completed = data.filter(req => req.status === 'completed').length;
-        
-        setDashboardStats(prev => ({ 
-          ...prev, 
-          totalRequests: total,
-          pendingRequests: pending,
-          completedRequests: completed
-        }));
-      }
+      setServiceRequests(data);
+      const total = data.length;
+      const pending = data.filter(req => req.status === 'pending').length;
+      const completed = data.filter(req => req.status === 'completed').length;
+      
+      setDashboardStats(prev => ({ 
+        ...prev, 
+        totalRequests: total,
+        pendingRequests: pending,
+        completedRequests: completed
+      }));
     } catch (error) {
       console.error('Error fetching service requests:', error);
     }
@@ -228,17 +237,23 @@ export const StaffManagement = () => {
 
   const fetchAssets = async () => {
     try {
-      const { data, error } = await supabase
-        .from('assets')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
-
-      if (!error && data) {
-        setAssets(data);
-        const total = data.length;
-        const active = data.filter(asset => asset.status === 'active').length;
-        const maintenance = data.filter(asset => asset.status === 'maintenance').length;
+      const data = await apiClient.getAssets();
+      if (data) {
+        const normalized = data.map((asset: any) => ({
+          id: asset._id || asset.id,
+          name: asset.name,
+          asset_type: asset.asset_type,
+          status: asset.status,
+          location: asset.location || null,
+          purchase_date: asset.purchase_date || null,
+          warranty_expires: asset.warranty_expires || null,
+          manufacturer: asset.manufacturer || null,
+          model: asset.model || null
+        }));
+        setAssets(normalized);
+        const total = normalized.length;
+        const active = normalized.filter(asset => asset.status === 'active').length;
+        const maintenance = normalized.filter(asset => asset.status === 'maintenance').length;
         
         setDashboardStats(prev => ({ 
           ...prev, 
@@ -254,18 +269,20 @@ export const StaffManagement = () => {
 
   const fetchActivityLogs = async () => {
     try {
-      const { data, error } = await supabase
-        .from('activity_logs')
-        .select(`
-          *,
-          user:profiles!fk_activity_logs_user_id(first_name, last_name)
-        `)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (!error && data) {
-        setActivityLogs(data);
-      }
+      const response = await apiClient.getActivityLogs();
+      const rawData = response.logs || [];
+      const normalized = rawData.map((log: any) => ({
+        id: log._id || log.id,
+        action: log.action,
+        description: log.description,
+        created_at: log.created_at,
+        user: log.user ? {
+          first_name: log.user.first_name,
+          last_name: log.user.last_name
+        } : { first_name: 'System', last_name: 'User' },
+        entity_type: log.entity_type || null
+      }));
+      setActivityLogs(normalized);
     } catch (error) {
       console.error('Error fetching activity logs:', error);
     }
@@ -273,23 +290,27 @@ export const StaffManagement = () => {
 
   const fetchNotifications = async () => {
     try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(50);
+      const response = await apiClient.getNotifications();
+      const rawData = response.notifications || response || [];
+      const data = Array.isArray(rawData) ? rawData : [];
+      const normalized = data.map((notif: any) => ({
+        id: notif._id || notif.id,
+        title: notif.title,
+        message: notif.message,
+        type: notif.type,
+        read: !!notif.read,
+        created_at: notif.created_at
+      }));
 
-      if (!error && data) {
-        setNotifications(data);
-        const total = data.length;
-        const unread = data.filter(notif => !notif.read).length;
-        
-        setDashboardStats(prev => ({ 
-          ...prev, 
-          totalNotifications: total,
-          unreadNotifications: unread
-        }));
-      }
+      setNotifications(normalized);
+      const total = normalized.length;
+      const unread = normalized.filter(notif => !notif.read).length;
+      
+      setDashboardStats(prev => ({ 
+        ...prev, 
+        totalNotifications: total,
+        unreadNotifications: unread
+      }));
     } catch (error) {
       console.error('Error fetching notifications:', error);
     }
@@ -303,68 +324,35 @@ export const StaffManagement = () => {
       switch (dataType) {
         case 'staff':
           {
-            const { data: staffFull, error } = await supabase
-              .from('profiles')
-              .select(`
-                id,
-                first_name,
-                last_name,
-                email,
-                created_at,
-                user_roles (
-                  role,
-                  specialty
-                )
-              `)
-              .order('created_at', { ascending: false });
-            data = staffFull || staff;
+            const response = await apiClient.getUsers();
+            data = response.users || staff;
           }
           filename = `staff_export_${new Date().toISOString().split('T')[0]}.json`;
           break;
         case 'requests':
           {
-            const { data: requestsFull, error } = await supabase
-              .from('service_requests')
-              .select(`
-                *,
-                user:profiles!fk_service_requests_user_id(first_name, last_name, email),
-                assigned_technician:profiles!fk_service_requests_assigned_technician_id(first_name, last_name)
-              `)
-              .order('created_at', { ascending: false });
-            data = requestsFull || serviceRequests;
+            const response = await apiClient.getServiceRequests();
+            data = response.requests || serviceRequests;
           }
           filename = `service_requests_export_${new Date().toISOString().split('T')[0]}.json`;
           break;
         case 'assets':
           {
-            const { data: assetsFull, error } = await supabase
-              .from('assets')
-              .select('*')
-              .order('created_at', { ascending: false });
-            data = assetsFull || assets;
+            data = await apiClient.getAssets();
           }
           filename = `assets_export_${new Date().toISOString().split('T')[0]}.json`;
           break;
         case 'activity':
           {
-            const { data: activityFull, error } = await supabase
-              .from('activity_logs')
-              .select(`
-                *,
-                user:profiles!fk_activity_logs_user_id(first_name, last_name)
-              `)
-              .order('created_at', { ascending: false });
-            data = activityFull || activityLogs;
+            const response = await apiClient.getActivityLogs();
+            data = response.logs || activityLogs;
           }
           filename = `activity_logs_export_${new Date().toISOString().split('T')[0]}.json`;
           break;
         case 'notifications':
           {
-            const { data: notificationsFull, error } = await supabase
-              .from('notifications')
-              .select('*')
-              .order('created_at', { ascending: false });
-            data = notificationsFull || notifications;
+            const response = await apiClient.getNotifications();
+            data = response.notifications || response || notifications;
           }
           filename = `notifications_export_${new Date().toISOString().split('T')[0]}.json`;
           break;

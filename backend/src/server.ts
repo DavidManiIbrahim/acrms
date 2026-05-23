@@ -13,6 +13,7 @@ import notificationRoutes from './routes/notifications';
 import userRoutes from './routes/users';
 import reportRoutes from './routes/reports';
 import activityLogRoutes from './routes/activityLogs';
+import inventoryRoutes from './routes/inventory';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -54,6 +55,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/activity-logs', activityLogRoutes);
+app.use('/api/inventory', inventoryRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

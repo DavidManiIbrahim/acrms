@@ -192,6 +192,36 @@ class ApiClient {
   async getRecentRequests() {
     return this.request('/reports/recent-requests');
   }
+
+  // Activity Log methods
+  async getActivityLogs() {
+    return this.request('/activity-logs');
+  }
+
+  // Inventory methods
+  async getInventory() {
+    return this.request('/inventory');
+  }
+
+  async createInventoryItem(item: any) {
+    return this.request('/inventory', {
+      method: 'POST',
+      body: JSON.stringify(item),
+    });
+  }
+
+  async updateInventoryItem(id: string, item: any) {
+    return this.request(`/inventory/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(item),
+    });
+  }
+
+  async deleteInventoryItem(id: string) {
+    return this.request(`/inventory/${id}`, {
+      method: 'DELETE',
+    });
+  }
 }
 
 export const apiClient = new ApiClient(API_BASE_URL);
