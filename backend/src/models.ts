@@ -68,6 +68,10 @@ export interface IProfile extends Document {
   last_name?: string;
   phone?: string;
   position?: string;
+  address?: string;
+  department?: string;
+  emergency_contact?: string;
+  employee_id?: string;
   updated_at: Date;
   password_hash?: string;
 }
@@ -161,6 +165,10 @@ const ProfileSchema = new Schema<IProfile>({
   last_name: String,
   phone: String,
   position: String,
+  address: String,
+  department: String,
+  emergency_contact: String,
+  employee_id: String,
   updated_at: { type: Date, default: Date.now },
   password_hash: String
 });

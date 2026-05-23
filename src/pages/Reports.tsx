@@ -1,32 +1,132 @@
+import { useState, useEffect } from "react";
 import { Layout } from "@/components/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-  BarChart3, 
-  TrendingUp, 
-  Users, 
+import {
+  BarChart3,
+  TrendingUp,
+  Users,
   Target,
-  DollarSign,
-  Calendar,
+  Wrench,
+  Bell,
+  Package,
+  CheckCircle,
+  Clock,
+  AlertTriangle,
   Download,
-  Filter
+  RefreshCw
 } from "lucide-react";
+import { apiClient } from "@/integrations/api/client";
+import { useToast } from "@/hooks/use-toast";
+
+interface ReportSummary {
+  totalUsers: number;
+  totalRequests: number;
+  totalAssets: number;
+  totalNotifications: number;
+  pendingRequests: number;
+  completedRequests: number;
+  activeAssets: number;
+  maintenanceAssets: number;
+  unreadNotifications: number;
+}
+
+interface BreakdownItem {
+  _id: string;
+  count: number;
+}
+
+interface RecentRequest {
+  _id: string;
+  title: string;
+  status: string;
+  priority: string;
+  job_type: string;
+  created_at: string;
+}
+
+const statusColor = (status: string) => {
+  switch (status) {
+    case "completed": return "default";
+    case "pending": return "secondary";
+    case "in_progress": return "outline";
+    case "cancelled": return "destructive";
+    default: return "outline";
+  }
+};
+
+const priorityColor = (priority: string) => {
+  switch (priority) {
+    case "high": return "destructive";
+    case "medium": return "default";
+    case "low": return "secondary";
+    default: return "outline";
+  }
+};
 
 const Reports = () => {
-  const salesData = [
-    { period: "Q1 2024", revenue: 1250000, deals: 45, conversion: 24 },
-    { period: "Q2 2024", revenue: 1380000, deals: 52, conversion: 28 },
-    { period: "Q3 2024", revenue: 1120000, deals: 38, conversion: 22 },
-    { period: "Q4 2024", revenue: 1650000, deals: 62, conversion: 32 }
-  ];
+  const { toast } = useToast();
+  const [summary, setSummary] = useState<ReportSummary | null>(null);
+  const [requestsByStatus, setRequestsByStatus] = useState<BreakdownItem[]>([]);
+  const [requestsByPriority, setRequestsByPriority] = useState<BreakdownItem[]>([]);
+  const [assetsByType, setAssetsByType] = useState<BreakdownItem[]>([]);
+  const [usersByRole, setUsersByRole] = useState<BreakdownItem[]>([]);
+  const [recentRequests, setRecentRequests] = useState<RecentRequest[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const teamPerformance = [
-    { name: "Sarah Johnson", deals: 25, revenue: 450000, conversion: 35 },
-    { name: "Mike Davis", deals: 18, revenue: 320000, conversion: 28 },
-    { name: "Lisa Chen", deals: 22, revenue: 380000, conversion: 31 },
-    { name: "David Wilson", deals: 15, revenue: 275000, conversion: 25 }
-  ];
+  const fetchAll = async () => {
+    setLoading(true);
+    try {
+      const [
+        sumRes,
+        statusRes,
+        priorityRes,
+        assetsRes,
+        usersRes,
+        recentRes
+      ] = await Promise.all([
+        apiClient.getReportSummary(),
+        apiClient.getRequestsByStatus(),
+        apiClient.getRequestsByPriority(),
+        apiClient.getAssetsByType(),
+        apiClient.getUsersByRole(),
+        apiClient.getRecentRequests()
+      ]);
+
+      setSummary(sumRes);
+      setRequestsByStatus(statusRes.breakdown || []);
+      setRequestsByPriority(priorityRes.breakdown || []);
+      setAssetsByType(assetsRes.breakdown || []);
+      setUsersByRole(usersRes.breakdown || []);
+      setRecentRequests(recentRes.requests || []);
+    } catch (error: any) {
+      toast({
+        title: "Error loading reports",
+        description: error.message || "Failed to fetch report data",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAll();
+  }, []);
+
+  const exportJSON = () => {
+    const data = { summary, requestsByStatus, requestsByPriority, assetsByType, usersByRole, recentRequests };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `acrms_report_${new Date().toISOString().split("T")[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <Layout showSidebar={true}>
@@ -34,139 +134,179 @@ const Reports = () => {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold">Reports & Analytics</h2>
-            <p className="text-muted-foreground">Track performance and analyze trends</p>
+            <h1 className="text-3xl font-bold">Reports & Analytics</h1>
+            <p className="text-muted-foreground">Live data from the database</p>
           </div>
           <div className="flex space-x-2">
-            <Button variant="outline">
-              <Filter className="h-4 w-4 mr-2" />
-              Filters
+            <Button variant="outline" onClick={fetchAll} disabled={loading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? "animate-spin" : ""}`} />
+              Refresh
             </Button>
-            <Button>
+            <Button onClick={exportJSON} disabled={loading}>
               <Download className="h-4 w-4 mr-2" />
-              Export
+              Export JSON
             </Button>
           </div>
         </div>
 
-        {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Revenue</CardTitle>
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">$5.4M</div>
-              <p className="text-xs text-muted-foreground">
-                +12% from last year
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Deals Closed</CardTitle>
-              <Target className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">177</div>
-              <p className="text-xs text-muted-foreground">
-                +8% from last year
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Avg Deal Size</CardTitle>
-              <BarChart3 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">$30.5K</div>
-              <p className="text-xs text-muted-foreground">
-                +15% from last year
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Conversion Rate</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">28.5%</div>
-              <p className="text-xs text-muted-foreground">
-                +3.2% from last year
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Quarterly Performance */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Quarterly Performance</CardTitle>
-            <CardDescription>Revenue and deals closed by quarter</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {salesData.map((quarter, index) => (
-                <div key={quarter.period} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-12 h-12 bg-primary/10 rounded-lg flex items-center justify-center">
-                      <BarChart3 className="h-6 w-6 text-primary" />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold">{quarter.period}</h3>
-                      <p className="text-sm text-muted-foreground">{quarter.deals} deals closed</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-xl font-bold text-green-600">
-                      ${quarter.revenue.toLocaleString()}
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {quarter.conversion}% conversion
-                    </div>
-                  </div>
-                </div>
-              ))}
+        {loading ? (
+          <div className="flex items-center justify-center py-24">
+            <RefreshCw className="h-8 w-8 animate-spin text-primary" />
+            <span className="ml-3 text-muted-foreground text-lg">Loading report data...</span>
+          </div>
+        ) : (
+          <>
+            {/* Key Metrics */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+                  <Users className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{summary?.totalUsers ?? "—"}</div>
+                  <p className="text-xs text-muted-foreground">Registered accounts</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Service Requests</CardTitle>
+                  <Wrench className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{summary?.totalRequests ?? "—"}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {summary?.pendingRequests} pending · {summary?.completedRequests} completed
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Total Assets</CardTitle>
+                  <Package className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{summary?.totalAssets ?? "—"}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {summary?.activeAssets} active · {summary?.maintenanceAssets} maintenance
+                  </p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Notifications</CardTitle>
+                  <Bell className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{summary?.totalNotifications ?? "—"}</div>
+                  <p className="text-xs text-muted-foreground">{summary?.unreadNotifications} unread</p>
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Team Performance */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Sales Team Performance</CardTitle>
-            <CardDescription>Individual performance metrics</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {teamPerformance.map((member, index) => (
-                <div key={member.name} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                      <Users className="h-5 w-5 text-blue-600" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Requests by Status */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><CheckCircle className="h-5 w-5" /> Requests by Status</CardTitle>
+                  <CardDescription>Breakdown of service request statuses</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {requestsByStatus.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">No data available</p>
+                  ) : requestsByStatus.map((item) => (
+                    <div key={item._id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <Badge variant={statusColor(item._id) as any} className="capitalize">{item._id}</Badge>
+                      <span className="font-bold text-lg">{item.count}</span>
                     </div>
-                    <div>
-                      <h3 className="font-semibold">{member.name}</h3>
-                      <p className="text-sm text-muted-foreground">{member.deals} deals closed</p>
+                  ))}
+                </CardContent>
+              </Card>
+
+              {/* Requests by Priority */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><AlertTriangle className="h-5 w-5" /> Requests by Priority</CardTitle>
+                  <CardDescription>Distribution across priority levels</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {requestsByPriority.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">No data available</p>
+                  ) : requestsByPriority.map((item) => (
+                    <div key={item._id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <Badge variant={priorityColor(item._id) as any} className="capitalize">{item._id}</Badge>
+                      <span className="font-bold text-lg">{item.count}</span>
                     </div>
-                  </div>
-                  <div className="flex items-center space-x-6">
-                    <div className="text-right">
-                      <div className="font-semibold">${member.revenue.toLocaleString()}</div>
-                      <div className="text-sm text-muted-foreground">Revenue</div>
+                  ))}
+                </CardContent>
+              </Card>
+
+              {/* Users by Role */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Users className="h-5 w-5" /> Users by Role</CardTitle>
+                  <CardDescription>Role distribution across the organisation</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {usersByRole.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">No data available</p>
+                  ) : usersByRole.map((item) => (
+                    <div key={item._id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <span className="capitalize font-medium">{item._id || "user"}</span>
+                      <Badge variant="outline">{item.count}</Badge>
                     </div>
-                    <Badge variant={member.conversion > 30 ? "default" : "secondary"}>
-                      {member.conversion}% conversion
-                    </Badge>
-                  </div>
-                </div>
-              ))}
+                  ))}
+                </CardContent>
+              </Card>
+
+              {/* Assets by Type */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Package className="h-5 w-5" /> Assets by Type</CardTitle>
+                  <CardDescription>Inventory breakdown by asset category</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {assetsByType.length === 0 ? (
+                    <p className="text-muted-foreground text-sm">No data available</p>
+                  ) : assetsByType.map((item) => (
+                    <div key={item._id} className="flex items-center justify-between p-3 border rounded-lg">
+                      <span className="capitalize font-medium">{item._id}</span>
+                      <Badge variant="outline">{item.count}</Badge>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
+
+            {/* Recent Requests */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5" /> Recent Service Requests</CardTitle>
+                <CardDescription>Last 10 submitted requests</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {recentRequests.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">No requests yet</p>
+                ) : (
+                  <div className="space-y-3">
+                    {recentRequests.map((req) => (
+                      <div key={req._id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <p className="font-medium">{req.title}</p>
+                          <p className="text-xs text-muted-foreground capitalize">{req.job_type} · {new Date(req.created_at).toLocaleDateString()}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Badge variant={priorityColor(req.priority) as any} className="capitalize">{req.priority}</Badge>
+                          <Badge variant={statusColor(req.status) as any} className="capitalize">{req.status}</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
       </div>
     </Layout>
   );

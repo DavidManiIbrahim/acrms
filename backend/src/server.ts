@@ -10,6 +10,8 @@ import authRoutes from './routes/auth';
 import assetRoutes from './routes/assets';
 import serviceRequestRoutes from './routes/serviceRequests';
 import notificationRoutes from './routes/notifications';
+import userRoutes from './routes/users';
+import reportRoutes from './routes/reports';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -48,6 +50,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/assets', assetRoutes);
 app.use('/api/service-requests', serviceRequestRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/reports', reportRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

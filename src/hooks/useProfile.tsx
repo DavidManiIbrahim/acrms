@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { apiClient } from '@/integrations/api/client';
 import { useAuth } from './useAuth';
 import { useToast } from './use-toast';
 
 export interface Profile {
-  id: string;
+  id?: string;
   first_name: string | null;
   last_name: string | null;
   email: string;
@@ -13,6 +13,10 @@ export interface Profile {
   bio?: string;
   company?: string;
   position?: string;
+  address?: string;
+  department?: string;
+  emergency_contact?: string;
+  employee_id?: string;
 }
 
 export const useProfile = () => {
@@ -34,18 +38,10 @@ export const useProfile = () => {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .single();
-
-      if (error) {
-        console.error('Error fetching profile:', error);
-        return;
+      const response = await apiClient.getProfile();
+      if (response && response.user && response.user.profile) {
+        setProfile(response.user.profile);
       }
-
-      setProfile(data);
     } catch (error) {
       console.error('Error fetching profile:', error);
     } finally {
@@ -57,30 +53,17 @@ export const useProfile = () => {
     if (!user) return { error: 'No user found' };
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', user.id);
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to update profile",
-          variant: "destructive"
-        });
-        return { error };
-      }
-
+      await apiClient.updateProfile(updates);
       await fetchProfile();
       toast({
         title: "Profile Updated",
         description: "Your profile has been updated successfully"
       });
       return { error: null };
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "Error",
-        description: "An unexpected error occurred",
+        description: error.message || "Failed to update profile",
         variant: "destructive"
       });
       return { error };

@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { UserPlus, Search, Edit, Trash2, Shield, Users, Briefcase, HardHat, TrendingUp, Building, BarChart3, Package, Activity, Bell, Download, Filter, Calendar, AlertTriangle, CheckCircle, Clock, Wrench } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useRoleAccess } from "@/hooks/useRoleAccess";
@@ -178,48 +178,18 @@ export const StaffManagement = () => {
 
   const fetchStaff = async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select(`
-          id,
-          first_name,
-          last_name,
-          email,
-          created_at,
-          user_roles (
-            role,
-            specialty
-          )
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching staff:', error);
-        return;
-      }
-
-      const staffData = data || [];
+      const response = await apiClient.getUsers();
+      const staffData = response.users || [];
       setStaff(staffData);
       setDashboardStats(prev => ({ ...prev, totalUsers: staffData.length }));
-      
-      // Calculate role statistics
-      const stats = staffData.reduce((acc, member) => {
-        const role = member.user_roles[0]?.role || 'user';
+
+      const stats = staffData.reduce((acc: any, member: any) => {
+        const role = member.user_roles?.[0]?.role || 'user';
         acc.total++;
-        if (role in acc) {
-          (acc as any)[role]++;
-        }
+        if (role in acc) acc[role]++;
         return acc;
-      }, {
-        total: 0,
-        admin: 0,
-        ceo: 0,
-        manager: 0,
-        technician: 0,
-        sales: 0,
-        user: 0
-      });
-      
+      }, { total: 0, admin: 0, ceo: 0, manager: 0, technician: 0, sales: 0, user: 0 });
+
       setRoleStats(stats);
     } catch (error) {
       console.error('Error fetching staff:', error);
@@ -425,7 +395,6 @@ export const StaffManagement = () => {
 
   const createStaffMember = async () => {
     try {
-      // Check if user has permission to create staff members
       if (!canManageStaff()) {
         toast({
           title: "Permission Denied",
@@ -435,70 +404,28 @@ export const StaffManagement = () => {
         return;
       }
 
-      // Use admin auth to create user without signing them in
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      await apiClient.createUser({
         email: staffForm.email,
         password: staffForm.password,
-        user_metadata: {
-          first_name: staffForm.first_name,
-          last_name: staffForm.last_name,
-          role: staffForm.role
-        },
-        email_confirm: true // Skip email confirmation for admin-created users
+        firstName: staffForm.first_name,
+        lastName: staffForm.last_name,
+        role: staffForm.role,
+        specialty: staffForm.role === 'technician' ? staffForm.specialty : undefined
       });
 
-      if (authError) {
-        // Check if it's a permission error
-        if (authError.message.includes('permission') || authError.message.includes('admin')) {
-          toast({
-            title: "Permission Error",
-            description: "Creating users requires admin privileges. Please contact an administrator.",
-            variant: "destructive"
-          });
-        } else {
-          toast({
-            title: "Error",
-            description: authError.message,
-            variant: "destructive"
-          });
-        }
-        return;
-      }
+      toast({
+        title: "Success",
+        description: `${staffForm.role === 'user' ? 'User' : 'Staff member'} created successfully. They can now log in with their credentials.`
+      });
 
-      if (authData.user) {
-        // Create profile entry
-        await supabase
-          .from('profiles')
-          .insert({
-            id: authData.user.id,
-            first_name: staffForm.first_name,
-            last_name: staffForm.last_name,
-            email: staffForm.email
-          });
-
-        // Create role entry with specialty if applicable
-        await supabase
-          .from('user_roles')
-          .insert({
-            user_id: authData.user.id,
-            role: staffForm.role as any,
-            specialty: staffForm.role === 'technician' ? staffForm.specialty : null
-          });
-
-        toast({
-          title: "Success", 
-          description: `${staffForm.role === 'user' ? 'User' : 'Staff member'} created successfully. They can now log in with their credentials.`
-        });
-
-        setIsCreateDialogOpen(false);
-        resetForm();
-        fetchAllData();
-      }
-    } catch (error) {
+      setIsCreateDialogOpen(false);
+      resetForm();
+      fetchAllData();
+    } catch (error: any) {
       console.error('Error creating staff member:', error);
       toast({
         title: "Error",
-        description: "Failed to create staff member. This may require additional permissions.",
+        description: error.message || "Failed to create staff member.",
         variant: "destructive"
       });
     }
@@ -506,55 +433,21 @@ export const StaffManagement = () => {
 
   const updateStaffRole = async (staffId: string, newRole: string, specialty?: string) => {
     try {
-      const { error } = await supabase
-        .from('user_roles')
-        .update({ 
-          role: newRole as any,
-          specialty: specialty || null
-        })
-        .eq('user_id', staffId);
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to update role",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      toast({
-        title: "Success",
-        description: "Staff role updated successfully"
-      });
-
+      await apiClient.updateUserRole(staffId, newRole, specialty);
+      toast({ title: "Success", description: "Staff role updated successfully" });
       fetchStaff();
-    } catch (error) {
-      console.error('Error updating staff role:', error);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to update role", variant: "destructive" });
     }
   };
 
   const deleteStaffMember = async (staffId: string) => {
     try {
-      const { error } = await supabase.auth.admin.deleteUser(staffId);
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to delete staff member",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      toast({
-        title: "Success",
-        description: "Staff member deleted successfully"
-      });
-
+      await apiClient.deleteUser(staffId);
+      toast({ title: "Success", description: "Staff member deleted successfully" });
       fetchStaff();
-    } catch (error) {
-      console.error('Error deleting staff member:', error);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to delete staff member", variant: "destructive" });
     }
   };
 

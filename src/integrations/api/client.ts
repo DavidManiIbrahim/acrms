@@ -54,6 +54,13 @@ class ApiClient {
     return this.request('/auth/profile');
   }
 
+  async updateProfile(profile: any) {
+    return this.request('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(profile),
+    });
+  }
+
   // Asset methods
   async getAssets() {
     return this.request('/assets');
@@ -134,6 +141,56 @@ class ApiClient {
     return this.request(`/notifications/${id}`, {
       method: 'DELETE',
     });
+  }
+
+  // User / Staff methods
+  async getUsers() {
+    return this.request('/users');
+  }
+
+  async createUser(data: { email: string; password: string; firstName?: string; lastName?: string; role?: string; specialty?: string }) {
+    return this.request('/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateUserRole(id: string, role: string, specialty?: string) {
+    return this.request(`/users/${id}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ role, specialty }),
+    });
+  }
+
+  async deleteUser(id: string) {
+    return this.request(`/users/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // Reports methods
+  async getReportSummary() {
+    return this.request('/reports/summary');
+  }
+
+  async getRequestsByStatus() {
+    return this.request('/reports/requests-by-status');
+  }
+
+  async getRequestsByPriority() {
+    return this.request('/reports/requests-by-priority');
+  }
+
+  async getAssetsByType() {
+    return this.request('/reports/assets-by-type');
+  }
+
+  async getUsersByRole() {
+    return this.request('/reports/users-by-role');
+  }
+
+  async getRecentRequests() {
+    return this.request('/reports/recent-requests');
   }
 }
 

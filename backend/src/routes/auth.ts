@@ -147,4 +147,62 @@ router.get('/profile', authenticateToken, async (req: any, res: any) => {
   }
 });
 
+// Update current user profile
+router.put('/profile', authenticateToken, async (req: any, res: any) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const {
+      first_name,
+      last_name,
+      phone,
+      bio,
+      company,
+      position,
+      address,
+      department,
+      emergency_contact,
+      employee_id,
+      avatar_url
+    } = req.body;
+
+    // Create profile object if it doesn't exist
+    if (!user.profile) {
+      user.profile = { email: user.email } as any;
+    }
+
+    // Update profile fields
+    if (first_name !== undefined) user.profile.first_name = first_name;
+    if (last_name !== undefined) user.profile.last_name = last_name;
+    if (phone !== undefined) user.profile.phone = phone;
+    if (bio !== undefined) user.profile.bio = bio;
+    if (company !== undefined) user.profile.company = company;
+    if (position !== undefined) user.profile.position = position;
+    if (address !== undefined) user.profile.address = address;
+    if (department !== undefined) user.profile.department = department;
+    if (emergency_contact !== undefined) user.profile.emergency_contact = emergency_contact;
+    if (employee_id !== undefined) user.profile.employee_id = employee_id;
+    if (avatar_url !== undefined) user.profile.avatar_url = avatar_url;
+
+    user.profile.updated_at = new Date();
+    await user.save();
+
+    return res.json({
+      message: 'Profile updated successfully',
+      user: {
+        id: user._id,
+        email: user.email,
+        profile: user.profile,
+        roles: user.roles
+      }
+    });
+  } catch (error) {
+    console.error('Profile update error:', error);
+    return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 export default router;
