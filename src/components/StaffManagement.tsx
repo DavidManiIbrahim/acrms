@@ -90,7 +90,7 @@ interface DashboardStats {
 export const StaffManagement = () => {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { canManageStaff } = useRoleAccess();
+  const { role, loading: roleLoading, canManageStaff } = useRoleAccess();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -137,16 +137,15 @@ export const StaffManagement = () => {
   });
 
   useEffect(() => {
-    if (canManageStaff()) {
+    if (!roleLoading && canManageStaff()) {
       fetchAllData();
-    } else {
+    } else if (!roleLoading) {
       setLoading(false);
-    
     }
-  }, []);
+  }, [roleLoading, role]);
 
   useEffect(() => {
-    if (!canManageStaff()) return;
+    if (roleLoading || !canManageStaff()) return;
     if (activeTab === 'requests' && !hasLoadedRequests) {
       setHasLoadedRequests(true);
       fetchServiceRequests();
@@ -163,7 +162,7 @@ export const StaffManagement = () => {
       setHasLoadedNotifications(true);
       fetchNotifications();
     }
-  }, [activeTab, canManageStaff]);
+  }, [activeTab, roleLoading, role]);
 
   const fetchAllData = async () => {
     try {
@@ -206,14 +205,14 @@ export const StaffManagement = () => {
         status: req.status,
         priority: req.priority,
         created_at: req.created_at,
-        user: req.user_id ? {
-          first_name: req.user_id.profile?.first_name || '',
-          last_name: req.user_id.profile?.last_name || '',
-          email: req.user_id.email
+        user: req.user ? {
+          first_name: req.user.first_name || '',
+          last_name: req.user.last_name || '',
+          email: req.user.email || ''
         } : { first_name: 'Unknown', last_name: 'User', email: '' },
-        assigned_technician: req.assigned_technician_id ? {
-          first_name: req.assigned_technician_id.profile?.first_name || '',
-          last_name: req.assigned_technician_id.profile?.last_name || ''
+        assigned_technician: req.assigned_technician ? {
+          first_name: req.assigned_technician.first_name || '',
+          last_name: req.assigned_technician.last_name || ''
         } : null,
         job_type: req.job_type,
         location: req.location || null
