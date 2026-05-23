@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { body, validationResult } from 'express-validator';
 import { User, Profile, UserRole, AppRole } from '../models';
 import { authenticateToken, requireRole, generateToken } from '../middleware/auth';
+import { logActivity } from '../utils/logger';
 
 const router = Router();
 
@@ -68,6 +69,8 @@ router.post('/', authenticateToken, requireRole(['admin', 'manager', 'ceo']), [
     user.roles = [userRole];
     await user.save();
 
+    await logActivity(req.user._id.toString(), 'create_user', `Created user: ${email} with role ${role || 'user'}`, 'user', user._id.toString());
+
     return res.status(201).json({
       message: 'Staff member created successfully',
       user: {
@@ -102,6 +105,8 @@ router.put('/:id/role', authenticateToken, requireRole(['admin', 'manager', 'ceo
     }
 
     await user.save();
+
+    await logActivity(req.user._id.toString(), 'update_user_role', `Updated role for user ${user.email} to ${role}`, 'user', user._id.toString());
     return res.json({ message: 'Role updated successfully' });
   } catch (error) {
     console.error('Error updating role:', error);
@@ -116,6 +121,9 @@ router.delete('/:id', authenticateToken, requireRole(['admin']), async (req: any
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    await logActivity(req.user._id.toString(), 'delete_user', `Deleted user: ${user.email}`, 'user', req.params.id);
+
     return res.json({ message: 'User deleted successfully' });
   } catch (error) {
     console.error('Error deleting user:', error);

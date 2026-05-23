@@ -189,9 +189,9 @@ const Dashboard = () => {
       <div className="p-6 space-y-8 animate-fade-in-up">
         {/* Header */}
         <div className="space-y-2">
-          <h1 className="text-4xl font-bold text-gradient">Welcome back!</h1>
+          <h1 className="text-4xl font-bold text-gradient">User Dashboard</h1>
           <p className="text-muted-foreground text-lg">
-            Here's an overview of your service requests and account activity.
+            Welcome back! Here's an overview of your service requests and account activity.
           </p>
         </div>
 

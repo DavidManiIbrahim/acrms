@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, UserPlus } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 import { useToast } from "@/hooks/use-toast";
 
 interface AddContactDialogProps {
@@ -26,6 +26,7 @@ export const AddContactDialog = ({ open, onOpenChange, onContactAdded }: AddCont
     company: "",
     position: "",
     bio: "",
+    password: "",
     role: "user" as "user" | "admin" | "technician" | "sales" | "ceo" | "manager"
   });
 
@@ -48,77 +49,25 @@ export const AddContactDialog = ({ open, onOpenChange, onContactAdded }: AddCont
       return;
     }
 
+    if (!formData.password || formData.password.length < 6) {
+      toast({
+        title: "Validation Error",
+        description: "Password must be at least 6 characters.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // First, create the user in auth.users
-      const { data: authData, error: authError } = await supabase.auth.admin.createUser({
+      await apiClient.createUser({
         email: formData.email,
-        password: generateTemporaryPassword(), // Generate a temporary password
-        email_confirm: true,
-        user_metadata: {
-          first_name: formData.first_name,
-          last_name: formData.last_name
-        }
+        password: formData.password,
+        firstName: formData.first_name,
+        lastName: formData.last_name,
+        role: formData.role
       });
-
-      if (authError) {
-        console.error('Error creating user:', authError);
-        toast({
-          title: "Error",
-          description: authError.message || "Failed to create user account.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      if (!authData.user) {
-        toast({
-          title: "Error",
-          description: "Failed to create user account.",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Update the profile with additional information
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          phone: formData.phone || null,
-          company: formData.company || null,
-          position: formData.position || null,
-          bio: formData.bio || null
-        })
-        .eq('id', authData.user.id);
-
-      if (profileError) {
-        console.error('Error updating profile:', profileError);
-        toast({
-          title: "Warning",
-          description: "User created but failed to update profile information.",
-          variant: "destructive"
-        });
-      }
-
-      // Assign role if it's not the default 'user' role
-      if (formData.role !== 'user') {
-        const { error: roleError } = await supabase
-          .from('user_roles')
-          .insert({
-            user_id: authData.user.id,
-            role: formData.role as "user" | "admin" | "technician" | "sales" | "ceo" | "manager"
-          });
-
-        if (roleError) {
-          console.error('Error assigning role:', roleError);
-          toast({
-            title: "Warning",
-            description: "User created but failed to assign role.",
-            variant: "destructive"
-          });
-        }
-      }
 
       toast({
         title: "Success",
@@ -134,30 +83,21 @@ export const AddContactDialog = ({ open, onOpenChange, onContactAdded }: AddCont
         company: "",
         position: "",
         bio: "",
-        role: "user" as "user" | "admin" | "technician" | "sales" | "ceo" | "manager"
+        password: "",
+        role: "user"
       });
 
       onContactAdded();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error adding contact:', error);
       toast({
         title: "Error",
-        description: "An unexpected error occurred while adding the contact.",
+        description: error.message || "An unexpected error occurred while adding the contact.",
         variant: "destructive"
       });
     } finally {
       setLoading(false);
     }
-  };
-
-  const generateTemporaryPassword = () => {
-    // Generate a secure temporary password
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-    let password = '';
-    for (let i = 0; i < 12; i++) {
-      password += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return password;
   };
 
   return (
@@ -169,7 +109,7 @@ export const AddContactDialog = ({ open, onOpenChange, onContactAdded }: AddCont
             Add New Contact
           </DialogTitle>
           <DialogDescription>
-            Create a new user account and add them to your contacts. They will receive an email to set their password.
+            Create a new user account and add them to your contacts.
           </DialogDescription>
         </DialogHeader>
 
@@ -205,6 +145,18 @@ export const AddContactDialog = ({ open, onOpenChange, onContactAdded }: AddCont
               value={formData.email}
               onChange={(e) => handleInputChange('email', e.target.value)}
               placeholder="john.doe@example.com"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="password">Password *</Label>
+            <Input
+              id="password"
+              type="password"
+              value={formData.password}
+              onChange={(e) => handleInputChange('password', e.target.value)}
+              placeholder="Minimum 6 characters"
               required
             />
           </div>
@@ -251,6 +203,8 @@ export const AddContactDialog = ({ open, onOpenChange, onContactAdded }: AddCont
                 <SelectItem value="user">User</SelectItem>
                 <SelectItem value="technician">Technician</SelectItem>
                 <SelectItem value="sales">Sales</SelectItem>
+                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="ceo">CEO</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
             </Select>

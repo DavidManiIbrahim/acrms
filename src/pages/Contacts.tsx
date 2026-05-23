@@ -20,7 +20,7 @@ import {
 import { useState, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 import { AddContactDialog } from "@/components/AddContactDialog";
 
 interface Contact {
@@ -54,21 +54,25 @@ const Contacts = () => {
   const fetchContacts = async () => {
     try {
       setLoading(true);
+      const response = await apiClient.getUsers();
+      const usersData = response.users || [];
       
-      // If admin, fetch all profiles, otherwise fetch only the current user's profile
-      const query = supabase
-        .from('profiles')
-        .select('*')
-        .order('created_at', { ascending: false });
+      // Map API user data to Contact shape
+      const mappedContacts: Contact[] = usersData.map((u: any) => ({
+        id: u.id,
+        first_name: u.first_name,
+        last_name: u.last_name,
+        email: u.email,
+        phone: u.phone || null,
+        company: u.company || null,
+        position: u.position || null,
+        bio: u.bio || null,
+        avatar_url: u.avatar_url || null,
+        created_at: u.created_at,
+        updated_at: u.updated_at || u.created_at
+      }));
 
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('Error fetching contacts:', error);
-        return;
-      }
-
-      setContacts(data || []);
+      setContacts(mappedContacts);
     } catch (error) {
       console.error('Error fetching contacts:', error);
     } finally {

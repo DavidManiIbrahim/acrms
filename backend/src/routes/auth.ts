@@ -4,6 +4,7 @@ import { body, validationResult } from 'express-validator';
 import { User, Profile, UserRole, AppRole } from '../models';
 import { generateToken, authenticateToken } from '../middleware/auth';
 import connectToDatabase from '../database';
+import { logActivity } from '../utils/logger';
 
 const router = Router();
 
@@ -62,6 +63,9 @@ router.post('/register', [
     user.roles = [userRole];
 
     await user.save();
+
+    // Log activity
+    logActivity(user._id.toString(), 'user_register', `User registered: ${email}`, 'user', user._id.toString());
 
     // Generate token
     const token = generateToken(user._id.toString());

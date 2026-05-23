@@ -28,7 +28,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Layout } from "@/components/Layout";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 
 const AdminDashboard = () => {
   const { user, loading: authLoading } = useAuth();
@@ -66,59 +66,41 @@ const AdminDashboard = () => {
     try {
       setLoading(true);
       
-      // Fetch users with roles
-      const { data: usersData, error: usersError } = await supabase
-        .from('profiles')
-        .select(`
-          *,
-          user_roles (
-            role
-          )
-        `)
-        .order('created_at', { ascending: false });
-
-      let formattedUsers = [];
-      if (usersError) {
-        console.error('Error fetching users:', usersError);
-      } else {
-        formattedUsers = usersData?.map(profile => ({
-          id: profile.id,
-          name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unnamed User',
-          email: profile.email,
-          role: profile.user_roles?.[0]?.role || 'user',
-          status: 'active',
-          lastActive: new Date(profile.updated_at).toLocaleDateString(),
-          tasksAssigned: 0,
-          tasksCompleted: 0
-        })) || [];
-        setUsers(formattedUsers);
-      }
+      // Fetch users
+      const usersResponse = await apiClient.getUsers();
+      const usersData = usersResponse.users || [];
+      
+      const formattedUsers = usersData.map((profile: any) => ({
+        id: profile.id,
+        name: `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unnamed User',
+        email: profile.email,
+        role: profile.user_roles?.[0]?.role || 'user',
+        status: 'active',
+        lastActive: new Date(profile.updated_at || profile.created_at || Date.now()).toLocaleDateString(),
+        tasksAssigned: 0,
+        tasksCompleted: 0
+      }));
+      setUsers(formattedUsers);
 
       // Fetch service requests
-      const { data: requestsData, error: requestsError } = await supabase
-        .from('service_requests')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (requestsError) {
-        console.error('Error fetching requests:', requestsError);
-      } else {
-        const formattedRequests = requestsData?.map(request => ({
-          id: request.id,
-          title: request.title,
-          customerName: 'Customer', // Simplified for now
-          priority: request.priority,
-          status: request.status,
-          assignedTo: null, // Simplified for now
-          createdAt: new Date(request.created_at).toLocaleDateString(),
-          estimatedTime: request.estimated_duration || 'Not specified'
-        })) || [];
-        setRequests(formattedRequests);
-      }
+      const requestsResponse = await apiClient.getServiceRequests();
+      const requestsData = requestsResponse.requests || [];
+      
+      const formattedRequests = requestsData.map((request: any) => ({
+        id: request._id,
+        title: request.title,
+        customerName: request.user ? `${request.user.first_name || ''} ${request.user.last_name || ''}`.trim() || 'Customer' : 'Customer',
+        priority: request.priority,
+        status: request.status,
+        assignedTo: request.assigned_technician ? `${request.assigned_technician.first_name || ''} ${request.assigned_technician.last_name || ''}`.trim() : null,
+        createdAt: new Date(request.created_at).toLocaleDateString(),
+        estimatedTime: request.estimated_duration || 'Not specified'
+      }));
+      setRequests(formattedRequests);
 
       // Fetch technicians from users with technician role
-      const technicianUsers = formattedUsers.filter(user => user.role === 'technician');
-      setTechnicians(technicianUsers.map(tech => ({
+      const technicianUsers = formattedUsers.filter((user: any) => user.role === 'technician');
+      setTechnicians(technicianUsers.map((tech: any) => ({
         id: tech.id,
         name: tech.name,
         available: true,
@@ -142,16 +124,10 @@ const AdminDashboard = () => {
       const technician = technicians.find(t => t.id === technicianId);
 
       // Persist assignment in DB
-      const { error: updateError } = await supabase
-        .from('service_requests')
-        .update({ assigned_technician_id: technicianId, status: 'assigned' })
-        .eq('id', requestId);
-
-      if (updateError) {
-        console.error('Error assigning request:', updateError);
-        toast({ title: 'Error', description: 'Failed to assign request', variant: 'destructive' });
-        return;
-      }
+      await apiClient.updateServiceRequest(requestId, {
+        assigned_technician_id: technicianId,
+        status: 'assigned'
+      });
 
       // Optimistically update local UI state
       setRequests(prev => prev.map(r => r.id === requestId 
@@ -161,22 +137,22 @@ const AdminDashboard = () => {
 
       // Notify the technician
       if (technicianId) {
-        await supabase.from('notifications').insert({
+        await apiClient.createNotification({
           user_id: technicianId,
           title: 'New Task Assigned',
           message: `You have been assigned to request ${requestId}${technician?.name ? ' by admin' : ''}.`,
           type: 'info',
-          read: false,
+          read: false
         });
       }
 
       toast({
         title: 'Request Assigned',
-        description: `Request ${requestId} has been assigned to ${technician?.name || 'technician'}`,
+        description: `Request has been assigned to ${technician?.name || 'technician'}`,
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error('Unexpected error assigning request:', e);
-      toast({ title: 'Error', description: 'Unexpected error assigning request', variant: 'destructive' });
+      toast({ title: 'Error', description: e.message || 'Unexpected error assigning request', variant: 'destructive' });
     }
   };
 
@@ -246,7 +222,7 @@ const AdminDashboard = () => {
       <div className="p-6 space-y-8 animate-fade-in-up">
         {/* Header */}
         <div className="space-y-2">
-          <h1 className="text-4xl font-bold text-gradient">Dashboard</h1>
+          <h1 className="text-4xl font-bold text-gradient">Admin Dashboard</h1>
           <p className="text-muted-foreground text-lg">
             Comprehensive oversight of users, tasks, and system operations
           </p>
@@ -484,7 +460,7 @@ const AdminDashboard = () => {
                         <SelectItem value="admin">Admins</SelectItem>
                       </SelectContent>
                     </Select>
-                    <Button>
+                    <Button onClick={() => navigate('/user-management')}>
                       <UserPlus className="h-4 w-4 mr-2" />
                       Add User
                     </Button>

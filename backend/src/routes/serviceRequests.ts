@@ -1,21 +1,56 @@
 import { Router } from 'express';
-import { ServiceRequest } from '../models';
-import { authenticateToken } from '../middleware/auth';
-import connectToDatabase from '../database';
+import { ServiceRequest, User } from '../models';
+import { authenticateToken, requireRole } from '../middleware/auth';
+import { logActivity } from '../utils/logger';
 
 const router = Router();
 
-// Connect to database
-connectToDatabase().catch(() => {
-  console.log('⚠️  Database not available for service requests routes');
-});
+// Helper to check if user has admin-level role
+const isAdminRole = (user: any): boolean => {
+  const roles = user.roles?.map((r: any) => r.role) || [];
+  return roles.some((r: string) => ['admin', 'manager', 'ceo', 'technician'].includes(r));
+};
 
-// Get service requests for user
+// Get service requests (admin/manager/ceo see all, others see their own)
 router.get('/', authenticateToken, async (req: any, res) => {
   try {
-    const serviceRequests = await ServiceRequest.find({ user_id: req.user._id })
+    const query = isAdminRole(req.user) ? {} : { user_id: req.user._id.toString() };
+    const serviceRequests = await ServiceRequest.find(query)
       .sort({ created_at: -1 });
-    res.json(serviceRequests);
+
+    // Enrich with user info for admin views
+    const enriched = await Promise.all(serviceRequests.map(async (sr: any) => {
+      const obj = sr.toObject();
+      obj._id = sr._id.toString();
+
+      // Look up the requesting user
+      if (sr.user_id) {
+        const requestUser = await User.findById(sr.user_id).select('profile');
+        if (requestUser?.profile) {
+          obj.user = {
+            first_name: requestUser.profile.first_name,
+            last_name: requestUser.profile.last_name,
+            email: requestUser.profile.email
+          };
+        }
+      }
+
+      // Look up the assigned technician
+      if (sr.assigned_technician_id) {
+        const tech = await User.findById(sr.assigned_technician_id).select('profile');
+        if (tech?.profile) {
+          obj.assigned_technician = {
+            first_name: tech.profile.first_name,
+            last_name: tech.profile.last_name,
+            email: tech.profile.email
+          };
+        }
+      }
+
+      return obj;
+    }));
+
+    res.json({ requests: enriched });
   } catch (error) {
     console.error('Error fetching service requests:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -25,10 +60,11 @@ router.get('/', authenticateToken, async (req: any, res) => {
 // Get service request by ID
 router.get('/:id', authenticateToken, async (req: any, res) => {
   try {
-    const serviceRequest = await ServiceRequest.findOne({
-      _id: req.params.id,
-      user_id: req.user._id
-    });
+    const query: any = { _id: req.params.id };
+    if (!isAdminRole(req.user)) {
+      query.user_id = req.user._id.toString();
+    }
+    const serviceRequest = await ServiceRequest.findOne(query);
     if (!serviceRequest) {
       return res.status(404).json({ error: 'Service request not found' });
     }
@@ -44,11 +80,14 @@ router.post('/', authenticateToken, async (req: any, res) => {
   try {
     const requestData = {
       ...req.body,
-      user_id: req.user._id,
+      user_id: req.user._id.toString(),
       status: 'pending'
     };
     const serviceRequest = new ServiceRequest(requestData);
     await serviceRequest.save();
+
+    await logActivity(req.user._id.toString(), 'create_service_request', `Created service request: ${serviceRequest.title}`, 'service_request', serviceRequest._id.toString());
+
     res.status(201).json(serviceRequest);
   } catch (error) {
     console.error('Error creating service request:', error);
@@ -56,17 +95,25 @@ router.post('/', authenticateToken, async (req: any, res) => {
   }
 });
 
-// Update service request
+// Update service request (admins can update any, users only their own)
 router.put('/:id', authenticateToken, async (req: any, res) => {
   try {
+    const query: any = { _id: req.params.id };
+    if (!isAdminRole(req.user)) {
+      query.user_id = req.user._id.toString();
+    }
+
     const serviceRequest = await ServiceRequest.findOneAndUpdate(
-      { _id: req.params.id, user_id: req.user._id },
-      req.body,
+      query,
+      { ...req.body, updated_at: new Date() },
       { new: true }
     );
     if (!serviceRequest) {
       return res.status(404).json({ error: 'Service request not found' });
     }
+
+    await logActivity(req.user._id.toString(), 'update_service_request', `Updated service request: ${serviceRequest.title}`, 'service_request', serviceRequest._id.toString());
+
     return res.json(serviceRequest);
   } catch (error) {
     console.error('Error updating service request:', error);
@@ -77,13 +124,18 @@ router.put('/:id', authenticateToken, async (req: any, res) => {
 // Delete service request
 router.delete('/:id', authenticateToken, async (req: any, res) => {
   try {
-    const serviceRequest = await ServiceRequest.findOneAndDelete({
-      _id: req.params.id,
-      user_id: req.user._id
-    });
+    const query: any = { _id: req.params.id };
+    if (!isAdminRole(req.user)) {
+      query.user_id = req.user._id.toString();
+    }
+
+    const serviceRequest = await ServiceRequest.findOneAndDelete(query);
     if (!serviceRequest) {
       return res.status(404).json({ error: 'Service request not found' });
     }
+
+    await logActivity(req.user._id.toString(), 'delete_service_request', `Deleted service request: ${serviceRequest.title}`, 'service_request', serviceRequest._id.toString());
+
     return res.json({ message: 'Service request deleted successfully' });
   } catch (error) {
     console.error('Error deleting service request:', error);

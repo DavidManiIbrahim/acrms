@@ -27,7 +27,7 @@ import {
   Building,
   BarChart3
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useToast } from "@/hooks/use-toast";
@@ -53,8 +53,28 @@ const UserManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>("");
+  const [userForm, setUserForm] = useState({
+    email: "",
+    password: "",
+    first_name: "",
+    last_name: "",
+    role: "user",
+    specialty: ""
+  });
+
+  const resetForm = () => {
+    setUserForm({
+      email: "",
+      password: "",
+      first_name: "",
+      last_name: "",
+      role: "user",
+      specialty: ""
+    });
+  };
 
   useEffect(() => {
     if (user && role === 'admin') {
@@ -64,29 +84,15 @@ const UserManagement = () => {
 
   const fetchUsers = async () => {
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select(`
-          *,
-          user_roles (
-            role
-          )
-        `)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching users:', error);
-        toast({
-          title: "Error",
-          description: "Failed to fetch users",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      setUsers(data || []);
+      const response = await apiClient.getUsers();
+      setUsers(response.users || []);
     } catch (error) {
       console.error('Error fetching users:', error);
+      toast({
+        title: "Error",
+        description: "Failed to fetch users",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
@@ -94,34 +100,7 @@ const UserManagement = () => {
 
   const updateUserRole = async (userId: string, newRole: string) => {
     try {
-      // First, delete existing role
-      await supabase
-        .from('user_roles')
-        .delete()
-        .eq('user_id', userId);
-
-      // Then insert new role
-      const { error } = await supabase
-        .from('user_roles')
-        .insert([{ user_id: userId, role: newRole as any }]);
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to update user role",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Log activity
-      await supabase.from('activity_logs').insert({
-        user_id: user?.id,
-        action: 'update_user_role',
-        description: `Updated user role to ${newRole}`,
-        entity_type: 'user',
-        entity_id: userId
-      });
+      await apiClient.updateUserRole(userId, newRole);
 
       toast({
         title: "Success",
@@ -131,8 +110,13 @@ const UserManagement = () => {
       setIsEditDialogOpen(false);
       setEditingUser(null);
       fetchUsers();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error updating user role:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update user role",
+        variant: "destructive"
+      });
     }
   };
 
@@ -140,6 +124,63 @@ const UserManagement = () => {
     setEditingUser(user);
     setSelectedRole(user.user_roles?.[0]?.role || 'user');
     setIsEditDialogOpen(true);
+  };
+
+  const handleCreateUser = async () => {
+    try {
+      await apiClient.createUser({
+        email: userForm.email,
+        password: userForm.password,
+        firstName: userForm.first_name,
+        lastName: userForm.last_name,
+        role: userForm.role,
+        specialty: userForm.role === 'technician' ? userForm.specialty : undefined
+      });
+
+      toast({
+        title: "Success",
+        description: `User created successfully.`
+      });
+
+      setIsCreateDialogOpen(false);
+      resetForm();
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Error creating user:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create user.",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (userId === user?.id) {
+      toast({
+        title: "Error",
+        description: "You cannot delete your own account.",
+        variant: "destructive"
+      });
+      return;
+    }
+    if (!window.confirm("Are you sure you want to delete this user?")) {
+      return;
+    }
+    try {
+      await apiClient.deleteUser(userId);
+      toast({
+        title: "Success",
+        description: "User deleted successfully"
+      });
+      fetchUsers();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete user",
+        variant: "destructive"
+      });
+    }
   };
 
   const filteredUsers = users.filter(user => {
@@ -210,6 +251,10 @@ const UserManagement = () => {
               Manage user accounts and permissions
             </p>
           </div>
+          <Button onClick={() => setIsCreateDialogOpen(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add User
+          </Button>
         </div>
 
         {/* Filters */}
@@ -299,6 +344,13 @@ const UserManagement = () => {
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => handleDeleteUser(userProfile.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
                   </CardContent>
@@ -354,6 +406,101 @@ const UserManagement = () => {
                 </div>
               </div>
             )}
+          </DialogContent>
+        </Dialog>
+        {/* Add User Dialog */}
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add New User</DialogTitle>
+              <DialogDescription>
+                Create a new user account and assign their role
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="first_name">First Name</Label>
+                  <Input
+                    id="first_name"
+                    value={userForm.first_name}
+                    onChange={(e) => setUserForm(prev => ({ ...prev, first_name: e.target.value }))}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="last_name">Last Name</Label>
+                  <Input
+                    id="last_name"
+                    value={userForm.last_name}
+                    onChange={(e) => setUserForm(prev => ({ ...prev, last_name: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={userForm.email}
+                  onChange={(e) => setUserForm(prev => ({ ...prev, email: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={userForm.password}
+                  onChange={(e) => setUserForm(prev => ({ ...prev, password: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="role">Role</Label>
+                <Select
+                  value={userForm.role}
+                  onValueChange={(val) => setUserForm(prev => ({ ...prev, role: val }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">User</SelectItem>
+                    <SelectItem value="technician">Technician</SelectItem>
+                    <SelectItem value="sales">Sales</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="ceo">CEO</SelectItem>
+                    <SelectItem value="admin">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {userForm.role === 'technician' && (
+                <div className="space-y-2">
+                  <Label htmlFor="specialty">Specialty</Label>
+                  <Select
+                    value={userForm.specialty}
+                    onValueChange={(val) => setUserForm(prev => ({ ...prev, specialty: val }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select specialty" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hardware">Hardware</SelectItem>
+                      <SelectItem value="software">Software</SelectItem>
+                      <SelectItem value="networking">Networking</SelectItem>
+                      <SelectItem value="maintenance">Maintenance</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="flex justify-end space-x-2 pt-4">
+                <Button variant="outline" onClick={() => { setIsCreateDialogOpen(false); resetForm(); }}>
+                  Cancel
+                </Button>
+                <Button onClick={handleCreateUser}>
+                  Create User
+                </Button>
+              </div>
+            </div>
           </DialogContent>
         </Dialog>
       </div>
