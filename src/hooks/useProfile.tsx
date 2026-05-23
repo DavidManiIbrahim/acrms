@@ -70,10 +70,32 @@ export const useProfile = () => {
     }
   };
 
+  const uploadAvatar = async (file: File) => {
+    if (!user) return { error: 'No user found' };
+
+    try {
+      const response = await apiClient.uploadAvatar(file);
+      await fetchProfile();
+      toast({
+        title: "Avatar Updated",
+        description: "Your profile photo has been updated successfully"
+      });
+      return { error: null, avatar_url: response.avatar_url };
+    } catch (error: any) {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload avatar",
+        variant: "destructive"
+      });
+      return { error };
+    }
+  };
+
   return {
     profile,
     loading,
     updateProfile,
+    uploadAvatar,
     refetch: fetchProfile
   };
 };

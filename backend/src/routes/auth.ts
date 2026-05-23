@@ -5,8 +5,41 @@ import { User, Profile, UserRole, AppRole } from '../models';
 import { generateToken, authenticateToken } from '../middleware/auth';
 import connectToDatabase from '../database';
 import { logActivity } from '../utils/logger';
+import multer from 'multer';
+import path from 'path';
+import fs from 'fs';
 
 const router = Router();
+
+// Configure multer for file storage
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = './uploads/avatars';
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: (req: any, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, `avatar-${req.user?._id || 'unknown'}-${uniqueSuffix}${path.extname(file.originalname)}`);
+  }
+});
+
+const upload = multer({
+  storage: storage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
+  fileFilter: (req, file, cb) => {
+    const filetypes = /jpeg|jpg|png|webp/;
+    const mimetype = filetypes.test(file.mimetype);
+    const extname = filetypes.test(path.extname(file.originalname).toLowerCase());
+
+    if (mimetype && extname) {
+      return cb(null, true);
+    }
+    cb(new Error('Only images are allowed (jpeg, jpg, png, webp)'));
+  }
+});
 
 // Connect to database
 connectToDatabase().catch((error) => {
@@ -130,6 +163,45 @@ router.post('/login', [
   } catch (error) {
     console.error('Login error:', error);
     return res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Upload avatar
+router.post('/upload-avatar', authenticateToken, upload.single('avatar'), async (req: any, res: any) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Please upload a file' });
+    }
+
+    const user = await User.findById(req.user._id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Create profile object if it doesn't exist
+    if (!user.profile) {
+      user.profile = { email: user.email } as any;
+    }
+
+    // Generate full URL for the avatar
+    const protocol = req.protocol;
+    const host = req.get('host');
+    const avatarPath = req.file.path.replace(/\\/g, '/'); // Normalize path
+    const avatarUrl = `${protocol}://${host}/${avatarPath}`;
+
+    user.profile.avatar_url = avatarUrl;
+    user.profile.updated_at = new Date();
+    await user.save();
+
+    await logActivity(user._id.toString(), 'update_avatar', `User updated avatar: ${user.email}`, 'user', user._id.toString());
+
+    return res.json({
+      message: 'Avatar uploaded successfully',
+      avatar_url: avatarUrl
+    });
+  } catch (error: any) {
+    console.error('Avatar upload error:', error);
+    return res.status(500).json({ error: error.message || 'Internal server error' });
   }
 });
 

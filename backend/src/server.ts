@@ -14,6 +14,11 @@ import userRoutes from './routes/users';
 import reportRoutes from './routes/reports';
 import activityLogRoutes from './routes/activityLogs';
 import inventoryRoutes from './routes/inventory';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -22,7 +27,12 @@ const PORT = process.env.PORT || 3001;
 connectToDatabase();
 
 // Middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: false, // Allow cross-origin images
+}));
+
+// Static files
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 const allowedOrigins = [
   process.env.FRONTEND_URL,
   'http://localhost:8080',

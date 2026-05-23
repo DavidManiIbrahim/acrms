@@ -252,7 +252,7 @@ const TechnicianDashboard = () => {
         <div className="space-y-2">
           <h1 className="text-4xl font-bold text-gradient">Technician Dashboard</h1>
           <p className="text-muted-foreground text-lg">
-            Manage your assigned tasks and view available service requests
+            Manage your assigned tasks and track your performance.
           </p>
         </div>
 

@@ -11,13 +11,19 @@ class ApiClient {
     const url = `${this.baseURL}${endpoint}`;
     const token = localStorage.getItem('auth_token');
 
+    const headers: any = {
+      ...(token && { Authorization: `Bearer ${token}` }),
+      ...options.headers,
+    };
+
+    // Only add Content-Type: application/json if body is not FormData
+    if (!(options.body instanceof FormData)) {
+      headers['Content-Type'] = 'application/json';
+    }
+
     const config: RequestInit = {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-        ...options.headers,
-      },
       ...options,
+      headers,
     };
 
     try {
@@ -58,6 +64,15 @@ class ApiClient {
     return this.request('/auth/profile', {
       method: 'PUT',
       body: JSON.stringify(profile),
+    });
+  }
+
+  async uploadAvatar(file: File) {
+    const formData = new FormData();
+    formData.append('avatar', file);
+    return this.request('/auth/upload-avatar', {
+      method: 'POST',
+      body: formData,
     });
   }
 

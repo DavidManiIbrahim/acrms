@@ -34,7 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 
 export const ProfileDropdown = () => {
   const { signOut, user } = useAuth();
-  const { profile, updateProfile } = useProfile();
+  const { profile, updateProfile, uploadAvatar } = useProfile();
   const { toast } = useToast();
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -81,10 +81,34 @@ export const ProfileDropdown = () => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
-    toast({
-      title: "Feature coming soon",
-      description: "Profile image upload will be available in the next update.",
-    });
+    // Validate file type and size
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Invalid file type",
+        description: "Please select an image file",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) { // 2MB limit
+      toast({
+        title: "File too large",
+        description: "Please select an image smaller than 2MB",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setUploading(true);
+    
+    try {
+      await uploadAvatar(file);
+    } catch (error: any) {
+      console.error('Upload failed:', error);
+    } finally {
+      setUploading(false);
+    }
   };
 
   const getInitials = () => {

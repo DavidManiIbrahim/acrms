@@ -98,7 +98,6 @@ const getNavigationItems = (role: string | null) => {
     case "sales":
       return [
         ...crmItems.filter(item => item.title !== "Staff Management"),
-        ...serviceItems.filter(item => item.title === "Service Request" || item.title === "My Requests"),
         ...inventoryItems,
         { title: "Activity Log", url: "/activity", icon: Activity },
       ];

@@ -8,7 +8,7 @@ const router = Router();
 // Helper to check if user has admin-level role or staff role
 const isAdminRole = (user: any): boolean => {
   const roles = user.roles?.map((r: any) => r.role) || [];
-  return roles.some((r: string) => ['admin', 'manager', 'ceo', 'technician', 'sales'].includes(r));
+  return roles.some((r: string) => ['admin', 'manager', 'ceo', 'technician'].includes(r));
 };
 
 // Get service requests (admin/manager/ceo see all, others see their own)

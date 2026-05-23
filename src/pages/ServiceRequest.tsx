@@ -21,7 +21,7 @@ const ServiceRequest = () => {
 
   // Redirect non-staff/users who try to access this page
   useEffect(() => {
-    const allowedRoles = ['user', 'admin', 'sales', 'manager', 'ceo'];
+    const allowedRoles = ['user', 'admin', 'manager', 'ceo'];
     if (role && !allowedRoles.includes(role)) {
       navigate("/user-dashboard");
     }

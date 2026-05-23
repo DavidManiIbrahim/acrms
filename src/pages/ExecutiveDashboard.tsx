@@ -268,7 +268,9 @@ const ExecutiveDashboard = () => {
         {/* Header */}
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-4xl font-bold text-gradient">Executive Dashboard</h1>
+            <h1 className="text-4xl font-bold text-gradient">
+              {role === 'ceo' ? 'CEO Dashboard' : 'Manager Dashboard'}
+            </h1>
             <p className="text-muted-foreground text-lg">
               Comprehensive overview of organizational data and performance metrics
             </p>
