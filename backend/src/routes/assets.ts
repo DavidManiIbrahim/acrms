@@ -28,10 +28,10 @@ router.get('/:id', authenticateToken, async (req: any, res) => {
     if (!asset) {
       return res.status(404).json({ error: 'Asset not found' });
     }
-    res.json(asset);
+    return res.json(asset);
   } catch (error) {
     console.error('Error fetching asset:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -62,10 +62,10 @@ router.put('/:id', authenticateToken, async (req: any, res) => {
     if (!asset) {
       return res.status(404).json({ error: 'Asset not found' });
     }
-    res.json(asset);
+    return res.json(asset);
   } catch (error) {
     console.error('Error updating asset:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -76,10 +76,10 @@ router.delete('/:id', authenticateToken, async (req: any, res) => {
     if (!asset) {
       return res.status(404).json({ error: 'Asset not found' });
     }
-    res.json({ message: 'Asset deleted successfully' });
+    return res.json({ message: 'Asset deleted successfully' });
   } catch (error) {
     console.error('Error deleting asset:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

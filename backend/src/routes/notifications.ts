@@ -50,10 +50,10 @@ router.put('/:id/read', authenticateToken, async (req: any, res) => {
     if (!notification) {
       return res.status(404).json({ error: 'Notification not found' });
     }
-    res.json(notification);
+    return res.json(notification);
   } catch (error) {
     console.error('Error updating notification:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -67,10 +67,10 @@ router.delete('/:id', authenticateToken, async (req: any, res) => {
     if (!notification) {
       return res.status(404).json({ error: 'Notification not found' });
     }
-    res.json({ message: 'Notification deleted successfully' });
+    return res.json({ message: 'Notification deleted successfully' });
   } catch (error) {
     console.error('Error deleting notification:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

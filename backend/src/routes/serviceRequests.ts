@@ -32,10 +32,10 @@ router.get('/:id', authenticateToken, async (req: any, res) => {
     if (!serviceRequest) {
       return res.status(404).json({ error: 'Service request not found' });
     }
-    res.json(serviceRequest);
+    return res.json(serviceRequest);
   } catch (error) {
     console.error('Error fetching service request:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -67,10 +67,10 @@ router.put('/:id', authenticateToken, async (req: any, res) => {
     if (!serviceRequest) {
       return res.status(404).json({ error: 'Service request not found' });
     }
-    res.json(serviceRequest);
+    return res.json(serviceRequest);
   } catch (error) {
     console.error('Error updating service request:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -84,10 +84,10 @@ router.delete('/:id', authenticateToken, async (req: any, res) => {
     if (!serviceRequest) {
       return res.status(404).json({ error: 'Service request not found' });
     }
-    res.json({ message: 'Service request deleted successfully' });
+    return res.json({ message: 'Service request deleted successfully' });
   } catch (error) {
     console.error('Error deleting service request:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

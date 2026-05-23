@@ -26,6 +26,7 @@ export const authenticateToken = async (req: AuthRequest, res: Response, next: N
 
     req.user = user;
     next();
+    return;
   } catch (error) {
     return res.status(403).json({ error: 'Invalid token' });
   }
@@ -45,6 +46,7 @@ export const requireRole = (roles: string[]) => {
     }
 
     next();
+    return;
   };
 };
 

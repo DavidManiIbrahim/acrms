@@ -43,10 +43,10 @@ class ApiClient {
     });
   }
 
-  async register(email: string, password: string, firstName?: string, lastName?: string) {
+  async register(email: string, password: string, firstName?: string, lastName?: string, role?: string) {
     return this.request('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ email, password, firstName, lastName }),
+      body: JSON.stringify({ email, password, firstName, lastName, role }),
     });
   }
 

@@ -11,13 +11,23 @@ export const useUserRole = () => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchUserRole = async () => {
-      if (!user) {
-        setRole(null);
-        setLoading(false);
-        return;
-      }
+    if (authLoading) return;
 
+    if (!user) {
+      setRole(null);
+      setLoading(false);
+      return;
+    }
+
+    // Check if the user object has roles from our Express backend
+    const userRole = user.roles?.[0]?.role as UserRole;
+    if (userRole) {
+      setRole(userRole);
+      setLoading(false);
+      return;
+    }
+
+    const fetchUserRole = async () => {
       try {
         const { data, error } = await supabase
           .from('user_roles')
@@ -30,7 +40,7 @@ export const useUserRole = () => {
           // Default to 'user' role if error occurs
           setRole('user');
         } else {
-          setRole(data.role);
+          setRole(data.role as UserRole);
         }
       } catch (error) {
         console.error('Error fetching user role:', error);
@@ -40,9 +50,7 @@ export const useUserRole = () => {
       }
     };
 
-    if (!authLoading) {
-      fetchUserRole();
-    }
+    fetchUserRole();
   }, [user, authLoading]);
 
   return { role, loading: loading || authLoading };

@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Schema, Document, Model } from 'mongoose';
 
 // Enums
 export const AppRole = {
@@ -23,7 +23,7 @@ export interface IActivityLog extends Document {
   user_id: string;
 }
 
-export interface IAsset extends Document {
+export interface IAsset extends Omit<Document, 'model'> {
   asset_type: string;
   cpu?: string;
   created_at: Date;
@@ -199,10 +199,10 @@ const UserSchema = new Schema<IUser>({
 });
 
 // Models
-export const ActivityLog = mongoose.models.ActivityLog || mongoose.model<IActivityLog>('ActivityLog', ActivityLogSchema);
-export const Asset = mongoose.models.Asset || mongoose.model<IAsset>('Asset', AssetSchema);
-export const Notification = mongoose.models.Notification || mongoose.model<INotification>('Notification', NotificationSchema);
-export const Profile = mongoose.models.Profile || mongoose.model<IProfile>('Profile', ProfileSchema);
-export const ServiceRequest = mongoose.models.ServiceRequest || mongoose.model<IServiceRequest>('ServiceRequest', ServiceRequestSchema);
-export const UserRole = mongoose.models.UserRole || mongoose.model<IUserRole>('UserRole', UserRoleSchema);
-export const User = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);
+export const ActivityLog: Model<IActivityLog> = mongoose.models.ActivityLog || mongoose.model<IActivityLog>('ActivityLog', ActivityLogSchema);
+export const Asset: Model<IAsset> = mongoose.models.Asset || mongoose.model<IAsset>('Asset', AssetSchema);
+export const Notification: Model<INotification> = mongoose.models.Notification || mongoose.model<INotification>('Notification', NotificationSchema);
+export const Profile: Model<IProfile> = mongoose.models.Profile || mongoose.model<IProfile>('Profile', ProfileSchema);
+export const ServiceRequest: Model<IServiceRequest> = mongoose.models.ServiceRequest || mongoose.model<IServiceRequest>('ServiceRequest', ServiceRequestSchema);
+export const UserRole: Model<IUserRole> = mongoose.models.UserRole || mongoose.model<IUserRole>('UserRole', UserRoleSchema);
+export const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);

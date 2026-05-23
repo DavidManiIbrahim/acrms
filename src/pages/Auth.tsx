@@ -12,6 +12,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -23,6 +24,7 @@ const signupSchema = z.object({
   password: z.string().min(6, "Password must be at least 6 characters"),
   firstName: z.string().min(2, "First name must be at least 2 characters"),
   lastName: z.string().min(2, "Last name must be at least 2 characters"),
+  role: z.string().min(1, "Role is required"),
 });
 
 const forgotPasswordSchema = z.object({
@@ -62,6 +64,7 @@ const Auth = () => {
       password: "",
       firstName: "",
       lastName: "",
+      role: "user",
     },
   });
 
@@ -84,7 +87,7 @@ const Auth = () => {
 
   const onSignup = async (data: SignupForm) => {
     setIsSubmitting(true);
-    const { error } = await signUp(data.email, data.password, data.firstName, data.lastName);
+    const { error } = await signUp(data.email, data.password, data.firstName, data.lastName, data.role);
     if (!error) {
       // Stay on auth page to show success message
     }
@@ -226,6 +229,31 @@ const Auth = () => {
                         <FormControl>
                           <Input type="password" placeholder="Create a password" {...field} />
                         </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={signupForm.control}
+                    name="role"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Role</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select a role" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="user">User</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                            <SelectItem value="technician">Technician</SelectItem>
+                            <SelectItem value="sales">Sales</SelectItem>
+                            <SelectItem value="manager">Manager</SelectItem>
+                            <SelectItem value="ceo">CEO</SelectItem>
+                          </SelectContent>
+                        </Select>
                         <FormMessage />
                       </FormItem>
                     )}
