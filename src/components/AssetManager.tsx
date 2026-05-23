@@ -14,18 +14,8 @@ import {
   DialogTitle, 
   DialogTrigger 
 } from "@/components/ui/dialog";
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  Calendar, 
-  MapPin, 
-  Settings,
-  Camera,
-  Trash2,
-  Edit
-} from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { Plus, Search, Filter, Calendar, MapPin, Settings, Camera, Trash2, Edit } from "lucide-react";
+import { apiClient } from "@/integrations/api/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -88,18 +78,8 @@ export const AssetManager = () => {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
-        .from('assets')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.error('Error fetching assets:', error);
-        return;
-      }
-
-      setAssets(data || []);
+      const data = await apiClient.getAssets();
+      setAssets(Array.isArray(data) ? data : (data.assets || []));
     } catch (error) {
       console.error('Error fetching assets:', error);
     } finally {
@@ -108,30 +88,8 @@ export const AssetManager = () => {
   };
 
   const uploadImage = async (file: File): Promise<string | null> => {
-    if (!user) return null;
-
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file);
-
-      if (uploadError) {
-        console.error('Error uploading image:', uploadError);
-        return null;
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName);
-
-      return publicUrl;
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      return null;
-    }
+    // Backend doesn't support image upload yet, returning a dummy URL or local preview
+    return URL.createObjectURL(file);
   };
 
   const resetForm = () => {
@@ -168,10 +126,7 @@ export const AssetManager = () => {
       
       // Upload image if a new file is selected
       if (imageFile) {
-        const uploadedImageUrl = await uploadImage(imageFile);
-        if (uploadedImageUrl) {
-          imageUrl = uploadedImageUrl;
-        }
+        imageUrl = await uploadImage(imageFile);
       }
 
       const assetData = {
@@ -180,35 +135,11 @@ export const AssetManager = () => {
         image_url: imageUrl
       };
 
-      let error;
       if (editingAsset) {
-        ({ error } = await supabase
-          .from('assets')
-          .update(assetData)
-          .eq('id', editingAsset.id));
+        await apiClient.updateAsset(editingAsset.id, assetData);
       } else {
-        ({ error } = await supabase
-          .from('assets')
-          .insert([assetData]));
+        await apiClient.createAsset(assetData);
       }
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to save asset",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Log activity
-      await supabase.from('activity_logs').insert({
-        user_id: user.id,
-        action: editingAsset ? 'update_asset' : 'create_asset',
-        description: `Asset ${editingAsset ? 'updated' : 'created'}: ${assetForm.name}`,
-        entity_type: 'asset',
-        entity_id: editingAsset?.id
-      });
 
       toast({
         title: "Success",
@@ -256,20 +187,10 @@ export const AssetManager = () => {
   };
 
   const handleDeleteAsset = async (assetId: string) => {
-    try {
-      const { error } = await supabase
-        .from('assets')
-        .delete()
-        .eq('id', assetId);
+    if (!confirm("Are you sure you want to delete this asset?")) return;
 
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to delete asset",
-          variant: "destructive"
-        });
-        return;
-      }
+    try {
+      await apiClient.deleteAsset(assetId);
 
       toast({
         title: "Success",
@@ -279,6 +200,11 @@ export const AssetManager = () => {
       fetchAssets();
     } catch (error) {
       console.error('Error deleting asset:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete asset",
+        variant: "destructive"
+      });
     }
   };
 
@@ -595,7 +521,7 @@ export const AssetManager = () => {
           </div>
         ) : (
           filteredAssets.map((asset) => (
-            <Card key={asset.id} className="hover:shadow-md transition-shadow">
+            <Card key={asset._id || asset.id} className="hover:shadow-md transition-shadow">
                <CardHeader className="pb-3">
                  <div className="flex items-start justify-between">
                    <div className="flex items-center space-x-3">
@@ -658,7 +584,7 @@ export const AssetManager = () => {
                   <Button 
                     size="sm" 
                     variant="outline"
-                    onClick={() => handleDeleteAsset(asset.id)}
+                    onClick={() => handleDeleteAsset(asset._id || asset.id)}
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>

@@ -24,7 +24,7 @@ import {
   Clock,
   DollarSign
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useToast } from "@/hooks/use-toast";
@@ -115,17 +115,31 @@ const ExecutiveDashboard = () => {
     try {
       setLoading(true);
       
-      // Fetch statistics
-      await Promise.all([
-        fetchUserStats(),
-        fetchRequestStats(),
-        fetchAssetStats(),
-        fetchNotificationStats(),
-        fetchServiceRequests(),
-        fetchAssets(),
-        fetchUsers(),
-        fetchActivityLogs()
+      const summary = await apiClient.getReportSummary();
+      setStats({
+        totalUsers: summary.totalUsers || 0,
+        totalRequests: summary.totalRequests || 0,
+        totalAssets: summary.totalAssets || 0,
+        pendingRequests: summary.pendingRequests || 0,
+        completedRequests: summary.completedRequests || 0,
+        activeAssets: summary.activeAssets || 0,
+        maintenanceAssets: summary.maintenanceAssets || 0,
+        totalNotifications: summary.totalNotifications || 0,
+        unreadNotifications: summary.unreadNotifications || 0
+      });
+
+      const [requestsRes, assetsRes, usersRes, logsRes] = await Promise.all([
+        apiClient.getServiceRequests(),
+        apiClient.getAssets(),
+        apiClient.getUsers(),
+        apiClient.getActivityLogs()
       ]);
+
+      setServiceRequests(requestsRes.requests || requestsRes || []);
+      setAssets(assetsRes.assets || assetsRes || []);
+      setUsers(usersRes.users || usersRes || []);
+      setActivityLogs(logsRes.logs || logsRes || []);
+
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       toast({
@@ -138,131 +152,15 @@ const ExecutiveDashboard = () => {
     }
   };
 
-  const fetchUserStats = async () => {
-    const { count, error } = await supabase
-      .from('profiles')
-      .select('*', { count: 'exact', head: true });
-
-    if (!error && count !== null) {
-      setStats(prev => ({ ...prev, totalUsers: count }));
-    }
-  };
-
-  const fetchRequestStats = async () => {
-    const { data, error } = await supabase
-      .from('service_requests')
-      .select('*');
-
-    if (!error && data) {
-      const total = data.length;
-      const pending = data.filter(req => req.status === 'pending').length;
-      const completed = data.filter(req => req.status === 'completed').length;
-
-      setStats(prev => ({ 
-        ...prev, 
-        totalRequests: total,
-        pendingRequests: pending,
-        completedRequests: completed
-      }));
-    }
-  };
-
-  const fetchAssetStats = async () => {
-    const { data, error } = await supabase
-      .from('assets')
-      .select('*');
-
-    if (!error && data) {
-      const total = data.length;
-      const active = data.filter(asset => asset.status === 'active').length;
-      const maintenance = data.filter(asset => asset.status === 'maintenance').length;
-
-      setStats(prev => ({ 
-        ...prev, 
-        totalAssets: total,
-        activeAssets: active,
-        maintenanceAssets: maintenance
-      }));
-    }
-  };
-
-  const fetchNotificationStats = async () => {
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*');
-
-    if (!error && data) {
-      const total = data.length;
-      const unread = data.filter(notif => !notif.read).length;
-
-      setStats(prev => ({ 
-        ...prev, 
-        totalNotifications: total,
-        unreadNotifications: unread
-      }));
-    }
-  };
-
-  const fetchServiceRequests = async () => {
-    const { data, error } = await supabase
-      .from('service_requests')
-      .select(`
-        *,
-        user:profiles!fk_service_requests_user_id(first_name, last_name, email),
-        assigned_technician:profiles!fk_service_requests_assigned_technician_id(first_name, last_name)
-      `)
-      .order('created_at', { ascending: false })
-      .limit(50);
-
-    if (!error && data) {
-      setServiceRequests(data);
-    }
-  };
-
-  const fetchAssets = async () => {
-    const { data, error } = await supabase
-      .from('assets')
-      .select('*')
-      .order('created_at', { ascending: false })
-      .limit(50);
-
-    if (!error && data) {
-      setAssets(data);
-    }
-  };
-
-  const fetchUsers = async () => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select(`
-        *,
-        user_roles(role)
-      `)
-      .order('created_at', { ascending: false });
-
-    if (!error && data) {
-      const usersWithRoles = data.map(user => ({
-        ...user,
-        role: user.user_roles?.[0]?.role || 'user'
-      }));
-      setUsers(usersWithRoles);
-    }
-  };
-
-  const fetchActivityLogs = async () => {
-    const { data, error } = await supabase
-      .from('activity_logs')
-      .select(`
-        *,
-        user:profiles!fk_activity_logs_user_id(first_name, last_name)
-      `)
-      .order('created_at', { ascending: false })
-      .limit(100);
-
-    if (!error && data) {
-      setActivityLogs(data);
-    }
-  };
+  // Remove the separate fetch functions since we consolidated them
+  const fetchUserStats = async () => {};
+  const fetchRequestStats = async () => {};
+  const fetchAssetStats = async () => {};
+  const fetchNotificationStats = async () => {};
+  const fetchServiceRequests = async () => {};
+  const fetchAssets = async () => {};
+  const fetchUsers = async () => {};
+  const fetchActivityLogs = async () => {};
 
   const exportData = async (dataType: string) => {
     try {
@@ -474,12 +372,12 @@ const ExecutiveDashboard = () => {
                 <CardContent>
                   <div className="space-y-3">
                     {activityLogs.slice(0, 5).map((log) => (
-                      <div key={log.id} className="flex items-center space-x-3 p-2 rounded-lg bg-muted/30">
+                      <div key={log._id || log.id} className="flex items-center space-x-3 p-2 rounded-lg bg-muted/30">
                         <div className="flex-1">
                           <p className="text-sm font-medium">{log.action}</p>
                           <p className="text-xs text-muted-foreground">{log.description}</p>
                           <p className="text-xs text-muted-foreground">
-                            by {log.user.first_name} {log.user.last_name}
+                            by {log.user?.first_name} {log.user?.last_name}
                           </p>
                         </div>
                         <p className="text-xs text-muted-foreground">
@@ -544,11 +442,11 @@ const ExecutiveDashboard = () => {
               <CardContent>
                 <div className="space-y-4">
                   {serviceRequests.map((request) => (
-                    <div key={request.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div key={request._id || request.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex-1">
                         <h3 className="font-semibold">{request.title}</h3>
                         <p className="text-sm text-muted-foreground">
-                          by {request.user.first_name} {request.user.last_name}
+                          by {request.user?.first_name} {request.user?.last_name}
                         </p>
                         <p className="text-sm text-muted-foreground">
                           {request.assigned_technician 
@@ -590,7 +488,7 @@ const ExecutiveDashboard = () => {
               <CardContent>
                 <div className="space-y-4">
                   {assets.map((asset) => (
-                    <div key={asset.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div key={asset._id || asset.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex-1">
                         <h3 className="font-semibold">{asset.name}</h3>
                         <p className="text-sm text-muted-foreground">
@@ -632,7 +530,7 @@ const ExecutiveDashboard = () => {
               <CardContent>
                 <div className="space-y-4">
                   {users.map((userProfile) => (
-                    <div key={userProfile.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div key={userProfile._id || userProfile.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex-1">
                         <h3 className="font-semibold">
                           {userProfile.first_name} {userProfile.last_name}
@@ -671,12 +569,12 @@ const ExecutiveDashboard = () => {
               <CardContent>
                 <div className="space-y-4">
                   {activityLogs.map((log) => (
-                    <div key={log.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div key={log._id || log.id} className="flex items-center justify-between p-4 border rounded-lg">
                       <div className="flex-1">
                         <h3 className="font-semibold">{log.action}</h3>
                         <p className="text-sm text-muted-foreground">{log.description}</p>
                         <p className="text-sm text-muted-foreground">
-                          by {log.user.first_name} {log.user.last_name}
+                          by {log.user?.first_name} {log.user?.last_name}
                         </p>
                       </div>
                       <p className="text-xs text-muted-foreground">

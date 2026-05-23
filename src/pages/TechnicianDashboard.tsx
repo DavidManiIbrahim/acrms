@@ -29,6 +29,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useUserRole } from "@/hooks/useUserRole";
 import { Layout } from "@/components/Layout";
 import { apiClient } from "@/integrations/api/client";
+import { NotificationService } from "@/lib/notifications";
 
 const TechnicianDashboard = () => {
   const { user, loading } = useAuth();
@@ -79,7 +80,8 @@ const TechnicianDashboard = () => {
         job_type: req.job_type,
         location: req.location || null,
         assigned_technician_id: req.assigned_technician_id || null,
-        created_at: req.created_at
+        created_at: req.created_at,
+        user_id: req.user_id || (req.user?._id || req.user?.id)
       }));
       setRequests(mapped);
     } catch (error) {
@@ -96,14 +98,14 @@ const TechnicianDashboard = () => {
       const now = new Date();
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      const totalCompleted = all.filter((r: any) => r.assigned_technician_id === myId && r.status === 'completed').length;
-      const totalAssigned = all.filter((r: any) => r.assigned_technician_id === myId && r.status === 'assigned').length;
+      const totalCompleted = all.filter((r: any) => (r.assigned_technician_id === myId || r.assigned_technician?._id === myId) && r.status === 'completed').length;
+      const totalAssigned = all.filter((r: any) => (r.assigned_technician_id === myId || r.assigned_technician?._id === myId) && r.status === 'assigned').length;
       const totalPending = all.filter((r: any) => r.status === 'pending').length;
       const thisMonthCompleted = all.filter((r: any) =>
-        r.assigned_technician_id === myId &&
+        (r.assigned_technician_id === myId || r.assigned_technician?._id === myId) &&
         r.status === 'completed' &&
-        r.completed_at &&
-        new Date(r.completed_at) >= startOfMonth
+        (r.completed_at || r.updated_at) &&
+        new Date(r.completed_at || r.updated_at) >= startOfMonth
       ).length;
 
       setAnalytics({
@@ -119,12 +121,22 @@ const TechnicianDashboard = () => {
     }
   };
 
-  const handleAcceptRequest = async (requestId: string) => {
+  const handleAcceptRequest = async (request: any) => {
     try {
-      await apiClient.updateServiceRequest(requestId, {
+      await apiClient.updateServiceRequest(request.id, {
         status: 'assigned',
         assigned_technician_id: user?.id
       });
+
+      if (request.user_id) {
+        await NotificationService.notifyServiceRequestUpdate({
+          id: request.id,
+          title: request.title,
+          user_id: request.user_id,
+          status: 'assigned'
+        });
+      }
+
       toast({ title: "Request Accepted", description: `You have accepted the request.` });
       fetchRequests();
       fetchAnalytics();
@@ -133,9 +145,19 @@ const TechnicianDashboard = () => {
     }
   };
 
-  const handleStartWork = async (requestId: string) => {
+  const handleStartWork = async (request: any) => {
     try {
-      await apiClient.updateServiceRequest(requestId, { status: 'in_progress' });
+      await apiClient.updateServiceRequest(request.id, { status: 'in_progress' });
+
+      if (request.user_id) {
+        await NotificationService.notifyServiceRequestUpdate({
+          id: request.id,
+          title: request.title,
+          user_id: request.user_id,
+          status: 'in_progress'
+        });
+      }
+
       toast({ title: "Work Started", description: `You have started working on the request.` });
       fetchRequests();
       fetchAnalytics();
@@ -144,12 +166,22 @@ const TechnicianDashboard = () => {
     }
   };
 
-  const handleCompleteWork = async (requestId: string) => {
+  const handleCompleteWork = async (request: any) => {
     try {
-      await apiClient.updateServiceRequest(requestId, {
+      await apiClient.updateServiceRequest(request.id, {
         status: 'completed',
         completed_at: new Date().toISOString()
       });
+
+      if (request.user_id) {
+        await NotificationService.notifyServiceRequestUpdate({
+          id: request.id,
+          title: request.title,
+          user_id: request.user_id,
+          status: 'completed'
+        });
+      }
+
       toast({ title: "Work Completed", description: `Request has been marked as completed.` });
       fetchRequests();
       fetchAnalytics();
@@ -412,7 +444,7 @@ const TechnicianDashboard = () => {
                       {request.status === 'pending' && (
                         <Button 
                           size="sm" 
-                          onClick={() => handleAcceptRequest(request.id)}
+                          onClick={() => handleAcceptRequest(request)}
                           className="bg-green-600 hover:bg-green-700"
                         >
                           <CheckCircle className="h-4 w-4 mr-2" />
@@ -423,7 +455,7 @@ const TechnicianDashboard = () => {
                       {request.status === 'assigned' && request.assigned_technician_id === user?.id && (
                         <Button 
                           size="sm" 
-                          onClick={() => handleStartWork(request.id)}
+                          onClick={() => handleStartWork(request)}
                           className="bg-blue-600 hover:bg-blue-700"
                         >
                           <PlayCircle className="h-4 w-4 mr-2" />
@@ -434,7 +466,7 @@ const TechnicianDashboard = () => {
                       {request.status === 'in_progress' && request.assigned_technician_id === user?.id && (
                         <Button 
                           size="sm" 
-                          onClick={() => handleCompleteWork(request.id)}
+                          onClick={() => handleCompleteWork(request)}
                           className="bg-green-600 hover:bg-green-700"
                         >
                           <CheckCircle className="h-4 w-4 mr-2" />

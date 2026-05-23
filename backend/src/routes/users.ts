@@ -7,8 +7,8 @@ import { logActivity } from '../utils/logger';
 
 const router = Router();
 
-// GET /api/users — list all users (admin/manager only)
-router.get('/', authenticateToken, requireRole(['admin', 'manager', 'ceo']), async (req: any, res: any) => {
+// GET /api/users — list all users (admin/manager/sales only)
+router.get('/', authenticateToken, requireRole(['admin', 'manager', 'ceo', 'sales']), async (req: any, res: any) => {
   try {
     const users = await User.find().select('-password_hash').sort({ created_at: -1 });
     const result = users.map(u => ({

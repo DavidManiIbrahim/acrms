@@ -40,7 +40,7 @@ router.get('/summary', authenticateToken, requireRole(['admin', 'manager', 'ceo'
 });
 
 // GET /api/reports/requests-by-status — breakdown of service requests by status
-router.get('/requests-by-status', authenticateToken, requireRole(['admin', 'manager', 'ceo', 'technician']), async (req: any, res: any) => {
+router.get('/requests-by-status', authenticateToken, requireRole(['admin', 'manager', 'ceo', 'technician', 'sales']), async (req: any, res: any) => {
   try {
     const breakdown = await ServiceRequest.aggregate([
       { $group: { _id: '$status', count: { $sum: 1 } } },
@@ -54,7 +54,7 @@ router.get('/requests-by-status', authenticateToken, requireRole(['admin', 'mana
 });
 
 // GET /api/reports/requests-by-priority — breakdown of service requests by priority
-router.get('/requests-by-priority', authenticateToken, requireRole(['admin', 'manager', 'ceo', 'technician']), async (req: any, res: any) => {
+router.get('/requests-by-priority', authenticateToken, requireRole(['admin', 'manager', 'ceo', 'technician', 'sales']), async (req: any, res: any) => {
   try {
     const breakdown = await ServiceRequest.aggregate([
       { $group: { _id: '$priority', count: { $sum: 1 } } },
@@ -68,7 +68,7 @@ router.get('/requests-by-priority', authenticateToken, requireRole(['admin', 'ma
 });
 
 // GET /api/reports/assets-by-type — breakdown of assets by type
-router.get('/assets-by-type', authenticateToken, requireRole(['admin', 'manager', 'ceo']), async (req: any, res: any) => {
+router.get('/assets-by-type', authenticateToken, requireRole(['admin', 'manager', 'ceo', 'sales']), async (req: any, res: any) => {
   try {
     const breakdown = await Asset.aggregate([
       { $group: { _id: '$asset_type', count: { $sum: 1 } } },
@@ -82,7 +82,7 @@ router.get('/assets-by-type', authenticateToken, requireRole(['admin', 'manager'
 });
 
 // GET /api/reports/users-by-role — breakdown of users by role
-router.get('/users-by-role', authenticateToken, requireRole(['admin', 'manager', 'ceo']), async (req: any, res: any) => {
+router.get('/users-by-role', authenticateToken, requireRole(['admin', 'manager', 'ceo', 'sales']), async (req: any, res: any) => {
   try {
     const breakdown = await User.aggregate([
       { $unwind: { path: '$roles', preserveNullAndEmptyArrays: true } },
@@ -97,7 +97,7 @@ router.get('/users-by-role', authenticateToken, requireRole(['admin', 'manager',
 });
 
 // GET /api/reports/recent-activity — recent service requests
-router.get('/recent-requests', authenticateToken, requireRole(['admin', 'manager', 'ceo', 'technician']), async (req: any, res: any) => {
+router.get('/recent-requests', authenticateToken, requireRole(['admin', 'manager', 'ceo', 'technician', 'sales']), async (req: any, res: any) => {
   try {
     const requests = await ServiceRequest.find()
       .sort({ created_at: -1 })

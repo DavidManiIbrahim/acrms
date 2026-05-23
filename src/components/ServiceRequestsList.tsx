@@ -20,6 +20,7 @@ import { apiClient } from "@/integrations/api/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useToast } from "@/hooks/use-toast";
+import { NotificationService } from "@/lib/notifications";
 
 interface ServiceRequest {
   id: string;
@@ -88,7 +89,7 @@ export const ServiceRequestsList = () => {
     }
   };
 
-  const updateRequestStatus = async (requestId: string, newStatus: string, assignTechnician = false) => {
+  const updateRequestStatus = async (request: ServiceRequest, newStatus: string, assignTechnician = false) => {
     try {
       const updates: any = { status: newStatus };
       
@@ -100,7 +101,17 @@ export const ServiceRequestsList = () => {
         updates.completed_at = new Date().toISOString();
       }
 
-      await apiClient.updateServiceRequest(requestId, updates);
+      await apiClient.updateServiceRequest(request.id, updates);
+
+      // Notify the user who created the request
+      if (request.user_id) {
+        await NotificationService.notifyServiceRequestUpdate({
+          id: request.id,
+          title: request.title,
+          user_id: request.user_id,
+          status: newStatus
+        });
+      }
 
       toast({
         title: "Success",
@@ -288,7 +299,7 @@ export const ServiceRequestsList = () => {
                     {role === 'technician' && request.status === 'pending' && (
                       <Button 
                         size="sm" 
-                        onClick={() => updateRequestStatus(request.id, 'assigned', true)}
+                        onClick={() => updateRequestStatus(request, 'assigned', true)}
                       >
                         Accept Request
                       </Button>
@@ -296,7 +307,7 @@ export const ServiceRequestsList = () => {
                     {role === 'technician' && request.status === 'assigned' && request.assigned_technician_id === user?.id && (
                       <Button 
                         size="sm" 
-                        onClick={() => updateRequestStatus(request.id, 'in_progress')}
+                        onClick={() => updateRequestStatus(request, 'in_progress')}
                       >
                         Start Work
                       </Button>
@@ -305,7 +316,7 @@ export const ServiceRequestsList = () => {
                       <Button 
                         size="sm" 
                         variant="outline"
-                        onClick={() => updateRequestStatus(request.id, 'completed')}
+                        onClick={() => updateRequestStatus(request, 'completed')}
                       >
                         Mark Complete
                       </Button>

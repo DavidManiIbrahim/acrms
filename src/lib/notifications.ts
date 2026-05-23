@@ -1,4 +1,4 @@
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 
 export interface NotificationData {
   title: string;
@@ -14,20 +14,13 @@ export class NotificationService {
    */
   static async createNotification(data: NotificationData & { user_id: string }) {
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: data.user_id,
-          title: data.title,
-          message: data.message,
-          type: data.type,
-          read: false
-        });
-
-      if (error) {
-        console.error('Error creating notification:', error);
-        return { success: false, error };
-      }
+      await apiClient.createNotification({
+        user_id: data.user_id,
+        title: data.title,
+        message: data.message,
+        type: data.type,
+        read: false
+      });
 
       return { success: true };
     } catch (error) {
@@ -41,40 +34,30 @@ export class NotificationService {
    */
   static async createNotificationForRoles(data: NotificationData & { target_roles: string[] }) {
     try {
-      // Get all users with the specified roles
-      const { data: users, error: fetchError } = await supabase
-        .from('user_roles')
-        .select('user_id')
-        .in('role', data.target_roles);
+      // The backend should handle role-based notification creation
+      // but if we need to do it from frontend:
+      const response = await apiClient.getUsers();
+      const users = response.users || response || [];
+      const targetUsers = users.filter((u: any) => 
+        (u.user_roles || u.roles || []).some((r: any) => data.target_roles.includes(r.role))
+      );
 
-      if (fetchError) {
-        console.error('Error fetching users with roles:', fetchError);
-        return { success: false, error: fetchError };
-      }
-
-      if (!users || users.length === 0) {
+      if (targetUsers.length === 0) {
         return { success: true, count: 0 };
       }
 
       // Create notifications for each user
-      const notifications = users.map(user => ({
-        user_id: user.user_id,
-        title: data.title,
-        message: data.message,
-        type: data.type,
-        read: false
-      }));
+      await Promise.all(targetUsers.map((user: any) => 
+        apiClient.createNotification({
+          user_id: user._id || user.id,
+          title: data.title,
+          message: data.message,
+          type: data.type,
+          read: false
+        })
+      ));
 
-      const { error: insertError } = await supabase
-        .from('notifications')
-        .insert(notifications);
-
-      if (insertError) {
-        console.error('Error creating notifications:', insertError);
-        return { success: false, error: insertError };
-      }
-
-      return { success: true, count: notifications.length };
+      return { success: true, count: targetUsers.length };
     } catch (error) {
       console.error('Error creating notifications for roles:', error);
       return { success: false, error };
@@ -155,7 +138,7 @@ export class NotificationService {
       user_id: maintenanceData.user_id
     };
 
-    return await this.createNotification(notificationData);
+    return await this.createNotification(maintenanceData);
   }
 
   /**
@@ -176,27 +159,22 @@ export class NotificationService {
       });
     } else {
       // Notify all users
-      const { data: users, error } = await supabase
-        .from('profiles')
-        .select('id');
-
-      if (error || !users) {
+      try {
+        const response = await apiClient.getUsers();
+        const users = response.users || response || [];
+        await Promise.all(users.map((user: any) => 
+          apiClient.createNotification({
+            user_id: user._id || user.id,
+            title: alertData.title,
+            message: alertData.message,
+            type: alertData.severity,
+            read: false
+          })
+        ));
+        return { success: true };
+      } catch (error) {
         return { success: false, error };
       }
-
-      const notifications = users.map(user => ({
-        user_id: user.id,
-        title: alertData.title,
-        message: alertData.message,
-        type: alertData.severity,
-        read: false
-      }));
-
-      const { error: insertError } = await supabase
-        .from('notifications')
-        .insert(notifications);
-
-      return { success: !insertError, error: insertError };
     }
   }
 
@@ -205,12 +183,8 @@ export class NotificationService {
    */
   static async markAsRead(notificationId: string) {
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('id', notificationId);
-
-      return { success: !error, error };
+      await apiClient.markNotificationAsRead(notificationId);
+      return { success: true };
     } catch (error) {
       console.error('Error marking notification as read:', error);
       return { success: false, error };
@@ -222,13 +196,10 @@ export class NotificationService {
    */
   static async markAllAsRead(userId: string) {
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('user_id', userId)
-        .eq('read', false);
-
-      return { success: !error, error };
+      const response = await apiClient.getNotifications();
+      const unread = response.notifications?.filter((n: any) => !n.read) || [];
+      await Promise.all(unread.map((n: any) => apiClient.markNotificationAsRead(n._id || n.id)));
+      return { success: true };
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
       return { success: false, error };
@@ -240,16 +211,12 @@ export class NotificationService {
    */
   static async getUnreadCount(userId: string) {
     try {
-      const { count, error } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .eq('read', false);
-
-      return { count: count || 0, error };
+      const response = await apiClient.getNotifications();
+      const unreadCount = response.notifications?.filter((n: any) => !n.read).length || 0;
+      return { count: unreadCount, error: null };
     } catch (error) {
       console.error('Error getting unread count:', error);
       return { count: 0, error };
     }
   }
-} 
+}

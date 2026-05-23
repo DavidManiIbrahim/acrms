@@ -19,9 +19,10 @@ const ServiceRequest = () => {
     }
   }, [user, loading, navigate]);
 
-  // Redirect non-users who try to access this page
+  // Redirect non-staff/users who try to access this page
   useEffect(() => {
-    if (role && role !== 'user') {
+    const allowedRoles = ['user', 'admin', 'sales', 'manager', 'ceo'];
+    if (role && !allowedRoles.includes(role)) {
       navigate("/user-dashboard");
     }
   }, [role, navigate]);

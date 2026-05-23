@@ -1,8 +1,7 @@
 import { ReactNode } from 'react';
 import { useRoleAccess } from '@/hooks/useRoleAccess';
-import { Database } from '@/integrations/supabase/types';
 
-type UserRole = Database['public']['Enums']['app_role'];
+type UserRole = 'admin' | 'manager' | 'ceo' | 'technician' | 'sales' | 'user';
 
 interface RoleGuardProps {
   children: ReactNode;

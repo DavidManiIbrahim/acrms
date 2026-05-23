@@ -31,7 +31,6 @@ import {
 import { useAuth } from "@/hooks/useAuth";
 import { useProfile } from "@/hooks/useProfile";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 
 export const ProfileDropdown = () => {
   const { signOut, user } = useAuth();
@@ -82,61 +81,10 @@ export const ProfileDropdown = () => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
-    // Validate file type and size
-    if (!file.type.startsWith('image/')) {
-      toast({
-        title: "Invalid file type",
-        description: "Please select an image file",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (file.size > 2 * 1024 * 1024) { // 2MB limit
-      toast({
-        title: "File too large",
-        description: "Please select an image smaller than 2MB",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setUploading(true);
-    
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}/${Date.now()}.${fileExt}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file, {
-          upsert: true
-        });
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName);
-
-      // Update profile with new avatar URL
-      await updateProfile({ avatar_url: publicUrl });
-
-      toast({
-        title: "Profile photo updated",
-        description: "Your profile photo has been updated successfully"
-      });
-    } catch (error: any) {
-      toast({
-        title: "Upload failed",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setUploading(false);
-    }
+    toast({
+      title: "Feature coming soon",
+      description: "Profile image upload will be available in the next update.",
+    });
   };
 
   const getInitials = () => {

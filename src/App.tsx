@@ -86,7 +86,7 @@ const App = () => (
           
           {/* Service Management Routes */}
           <Route path="/service-request" element={
-            <ProtectedRoute allowedRoles={['user']}>
+            <ProtectedRoute allowedRoles={['user', 'admin', 'sales', 'manager', 'ceo']}>
               <ServiceRequest />
             </ProtectedRoute>
           } />
@@ -111,7 +111,7 @@ const App = () => (
             </ProtectedRoute>
           } />
           <Route path="/inventory" element={
-            <ProtectedRoute allowedRoles={['admin', 'technician']}>
+            <ProtectedRoute allowedRoles={['admin', 'technician', 'sales', 'manager', 'ceo']}>
               <Inventory />
             </ProtectedRoute>
           } />

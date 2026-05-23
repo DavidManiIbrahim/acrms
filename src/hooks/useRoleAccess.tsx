@@ -1,7 +1,6 @@
 import { useUserRole } from './useUserRole';
-import { Database } from '@/integrations/supabase/types';
 
-type UserRole = Database['public']['Enums']['app_role'];
+type UserRole = 'admin' | 'manager' | 'ceo' | 'technician' | 'sales' | 'user';
 
 export const useRoleAccess = () => {
   const { role, loading } = useUserRole();

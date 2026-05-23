@@ -28,7 +28,8 @@ router.post('/', authenticateToken, async (req: any, res) => {
   try {
     const notificationData = {
       ...req.body,
-      user_id: req.user._id
+      // Use user_id from body if provided, otherwise default to current user
+      user_id: req.body.user_id || req.user._id
     };
     const notification = new Notification(notificationData);
     await notification.save();

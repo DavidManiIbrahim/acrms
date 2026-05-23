@@ -9,6 +9,7 @@ import { Wrench } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { apiClient } from "@/integrations/api/client";
+import { NotificationService } from "@/lib/notifications";
 
 interface CreateRequestProps {
   onRequestCreated?: () => void;
@@ -43,13 +44,21 @@ export const CreateRequest = ({ onRequestCreated }: CreateRequestProps) => {
     setIsCreating(true);
 
     try {
-      await apiClient.createServiceRequest({
+      const serviceRequest = await apiClient.createServiceRequest({
         title: newRequest.title,
         description: newRequest.description,
         job_type: newRequest.job_type,
         priority: newRequest.priority,
         location: newRequest.location || null,
         required_specialty: newRequest.required_specialty || null,
+      });
+
+      // Notify admins and technicians about the new request
+      await NotificationService.notifyNewServiceRequest({
+        id: serviceRequest._id || serviceRequest.id,
+        title: newRequest.title,
+        user_id: user.id,
+        description: newRequest.description
       });
 
       toast({

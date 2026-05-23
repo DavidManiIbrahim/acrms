@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Calendar as CalendarIcon, Clock, MapPin, User } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserRole } from "@/hooks/useUserRole";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 
 const Calendar = () => {
   const { user } = useAuth();
@@ -31,35 +31,27 @@ const Calendar = () => {
     if (!user) return;
 
     try {
-      // Get current month date range
+      const response = await apiClient.getServiceRequests();
+      let data = response.requests || response || [];
+
+      // Filter by current month manually if needed, or just show all
       const nowDate = new Date();
       const startOfMonth = new Date(nowDate.getFullYear(), nowDate.getMonth(), 1);
       const endOfMonth = new Date(nowDate.getFullYear(), nowDate.getMonth() + 1, 0);
 
-      let query = supabase
-        .from('service_requests')
-        .select(`
-          *
-        `)
-        .gte('created_at', startOfMonth.toISOString())
-        .lte('created_at', endOfMonth.toISOString())
-        .order('created_at', { ascending: false });
+      data = data.filter((req: any) => {
+        const createdAt = new Date(req.created_at);
+        return createdAt >= startOfMonth && createdAt <= endOfMonth;
+      });
 
       // Apply role-based filtering
       if (role === 'user') {
-        query = query.eq('user_id', user.id);
+        data = data.filter((req: any) => req.user_id === user.id || req.user?._id === user.id);
       } else if (role === 'technician') {
-        query = query.eq('assigned_technician_id', user.id);
+        data = data.filter((req: any) => req.assigned_technician_id === user.id || req.assigned_technician?._id === user.id);
       }
 
-      const { data, error } = await query;
-
-      if (error) {
-        console.error('Error fetching scheduled requests:', error);
-        return;
-      }
-
-      setScheduledRequests(data || []);
+      setScheduledRequests(data);
     } catch (error) {
       console.error('Error fetching scheduled requests:', error);
     } finally {
@@ -218,12 +210,12 @@ const Calendar = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {groupedRequests[date].map((request) => (
-                      <div key={request.id} className="border border-border/40 rounded-lg p-4 bg-muted/20">
+                    {groupedRequests[date].map((request: any) => (
+                      <div key={request._id || request.id} className="border border-border/40 rounded-lg p-4 bg-muted/20">
                         <div className="flex justify-between items-start mb-3">
                           <div>
                             <h4 className="font-semibold">{request.title}</h4>
-                            <p className="text-sm text-muted-foreground">#{request.id.slice(0, 8)}</p>
+                            <p className="text-sm text-muted-foreground">#{(request._id || request.id || '').slice(0, 8)}</p>
                           </div>
                           <div className="flex space-x-2">
                             <Badge variant={getPriorityColor(request.priority) as any}>
@@ -245,7 +237,7 @@ const Calendar = () => {
                           <div className="flex items-center space-x-2">
                             <User className="h-4 w-4" />
                             <span>
-                              {request.profiles?.first_name} {request.profiles?.last_name}
+                              {request.user?.first_name || request.profiles?.first_name} {request.user?.last_name || request.profiles?.last_name}
                             </span>
                           </div>
                           

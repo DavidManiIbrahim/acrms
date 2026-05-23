@@ -16,8 +16,8 @@ router.get('/', authenticateToken, async (req: any, res) => {
   }
 });
 
-// POST /api/inventory - Add a new inventory item (Admin, Manager, Technician, CEO only)
-router.post('/', authenticateToken, requireRole(['admin', 'manager', 'ceo', 'technician']), async (req: any, res) => {
+// POST /api/inventory - Add a new inventory item (Admin, Manager, Technician, CEO, Sales only)
+router.post('/', authenticateToken, requireRole(['admin', 'manager', 'ceo', 'technician', 'sales']), async (req: any, res: any) => {
   try {
     const itemData = {
       ...req.body,
@@ -41,8 +41,8 @@ router.post('/', authenticateToken, requireRole(['admin', 'manager', 'ceo', 'tec
   }
 });
 
-// PUT /api/inventory/:id - Update an inventory item
-router.put('/:id', authenticateToken, requireRole(['admin', 'manager', 'ceo', 'technician']), async (req: any, res) => {
+// PUT /api/inventory/:id - Update an inventory item (Admin, Manager, CEO, Technician, Sales only)
+router.put('/:id', authenticateToken, requireRole(['admin', 'manager', 'ceo', 'technician', 'sales']), async (req: any, res: any) => {
   try {
     const item = await Inventory.findByIdAndUpdate(
       req.params.id,
@@ -69,7 +69,7 @@ router.put('/:id', authenticateToken, requireRole(['admin', 'manager', 'ceo', 't
 });
 
 // DELETE /api/inventory/:id - Delete an inventory item
-router.delete('/:id', authenticateToken, requireRole(['admin', 'manager', 'ceo']), async (req: any, res) => {
+router.delete('/:id', authenticateToken, requireRole(['admin', 'manager', 'ceo', 'sales']), async (req: any, res: any) => {
   try {
     const item = await Inventory.findByIdAndDelete(req.params.id);
     if (!item) {

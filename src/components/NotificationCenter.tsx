@@ -11,7 +11,7 @@ import {
   CheckCircle, 
   XCircle 
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { apiClient } from "@/integrations/api/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 
@@ -33,7 +33,6 @@ export const NotificationCenter = () => {
   useEffect(() => {
     if (user) {
       fetchNotifications();
-      setupRealtimeSubscription();
     }
   }, [user]);
 
@@ -41,19 +40,9 @@ export const NotificationCenter = () => {
     if (!user) return;
 
     try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(20);
-
-      if (error) {
-        console.error('Error fetching notifications:', error);
-        return;
-      }
-
-      setNotifications(data || []);
+      const response = await apiClient.getNotifications();
+      const data = response.notifications || response || [];
+      setNotifications(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching notifications:', error);
     } finally {
@@ -61,49 +50,12 @@ export const NotificationCenter = () => {
     }
   };
 
-  const setupRealtimeSubscription = () => {
-    if (!user) return;
-
-    const channel = supabase
-      .channel('notifications')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'notifications',
-          filter: `user_id=eq.${user.id}`
-        },
-        (payload) => {
-          setNotifications(prev => [payload.new as Notification, ...prev]);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  };
-
   const markAsRead = async (notificationId: string) => {
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('id', notificationId);
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to mark notification as read",
-          variant: "destructive"
-        });
-        return;
-      }
-
+      await apiClient.markNotificationAsRead(notificationId);
       setNotifications(prev => 
         prev.map(notif => 
-          notif.id === notificationId 
+          (notif.id === notificationId || (notif as any)._id === notificationId)
             ? { ...notif, read: true }
             : notif
         )
@@ -117,20 +69,8 @@ export const NotificationCenter = () => {
     if (!user) return;
 
     try {
-      const { error } = await supabase
-        .from('notifications')
-        .update({ read: true })
-        .eq('user_id', user.id)
-        .eq('read', false);
-
-      if (error) {
-        toast({
-          title: "Error",
-          description: "Failed to mark all notifications as read",
-          variant: "destructive"
-        });
-        return;
-      }
+      const unread = notifications.filter(n => !n.read);
+      await Promise.all(unread.map(n => apiClient.markNotificationAsRead(n.id || (n as any)._id)));
 
       setNotifications(prev => 
         prev.map(notif => ({ ...notif, read: true }))
@@ -207,7 +147,7 @@ export const NotificationCenter = () => {
         ) : (
           notifications.map((notification) => (
             <Card 
-              key={notification.id} 
+              key={notification._id || notification.id} 
               className={`hover:shadow-md transition-shadow ${
                 !notification.read ? 'border-primary/50 bg-primary/5' : ''
               }`}
@@ -242,7 +182,7 @@ export const NotificationCenter = () => {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => markAsRead(notification.id)}
+                      onClick={() => markAsRead(notification._id || notification.id)}
                     >
                       <Check className="h-4 w-4" />
                     </Button>

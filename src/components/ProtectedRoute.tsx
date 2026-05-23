@@ -2,9 +2,8 @@ import { ReactNode, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserRole } from '@/hooks/useUserRole';
-import { Database } from '@/integrations/supabase/types';
 
-type UserRole = Database['public']['Enums']['app_role'];
+type UserRole = 'admin' | 'manager' | 'ceo' | 'technician' | 'sales' | 'user';
 
 interface ProtectedRouteProps {
   children: ReactNode;
