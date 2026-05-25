@@ -44,9 +44,28 @@ router.post('/', authenticateToken, requireRole(['admin', 'manager', 'ceo', 'tec
 // PUT /api/inventory/:id - Update an inventory item (Admin, Manager, CEO, Technician, Sales only)
 router.put('/:id', authenticateToken, requireRole(['admin', 'manager', 'ceo', 'technician', 'sales']), async (req: any, res: any) => {
   try {
+    const allowedUpdateFields = [
+      'name',
+      'description',
+      'category',
+      'quantity',
+      'unit_price',
+      'supplier',
+      'location',
+      'status'
+    ];
+
+    const safeUpdate: Record<string, any> = {};
+    for (const field of allowedUpdateFields) {
+      if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+        safeUpdate[field] = req.body[field];
+      }
+    }
+    safeUpdate.last_updated = new Date();
+
     const item = await Inventory.findByIdAndUpdate(
       req.params.id,
-      { ...req.body, last_updated: new Date() },
+      safeUpdate,
       { new: true }
     );
     if (!item) {
