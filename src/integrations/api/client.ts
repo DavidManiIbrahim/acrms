@@ -5,7 +5,7 @@ class ApiClient {
 
   constructor(baseURL: string) {
     // Normalize baseURL: remove trailing slashes so joining is predictable
-    this.baseURL = baseURL.replace(/\/+$, '');
+    this.baseURL = baseURL.replace(/\/+$|\/+$/g, '');
   }
 
   private async request(endpoint: string, options: RequestInit = {}): Promise<any> {
