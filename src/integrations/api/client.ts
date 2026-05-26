@@ -4,11 +4,13 @@ class ApiClient {
   private baseURL: string;
 
   constructor(baseURL: string) {
-    this.baseURL = baseURL;
+    // Normalize baseURL: remove trailing slashes so joining is predictable
+    this.baseURL = baseURL.replace(/\/+$, '');
   }
 
   private async request(endpoint: string, options: RequestInit = {}): Promise<any> {
-    const url = `${this.baseURL}${endpoint}`;
+    const path = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = `${this.baseURL}${path}`;
     const token = localStorage.getItem('auth_token');
 
     const headers: any = {
