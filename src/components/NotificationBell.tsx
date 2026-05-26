@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Bell } from "lucide-react";
@@ -25,6 +26,7 @@ interface Notification {
 export const NotificationBell = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
@@ -198,8 +200,7 @@ export const NotificationBell = () => {
                 className="w-full text-xs"
                 onClick={() => {
                   setOpen(false);
-                  // Navigate to full notifications page
-                  window.location.href = '/notifications';
+                  navigate('/notifications');
                 }}
               >
                 View all notifications
